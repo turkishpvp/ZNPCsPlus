@@ -212,7 +212,11 @@ public class NpcRegistryImpl implements NpcRegistry {
 
     public void switchIds(String oldId, String newId) {
         NpcEntryImpl entry = getById(oldId);
-        delete(oldId);
+        if (entry == null) return;
+        npcList.remove(entry);
+        npcIdLookupMap.remove(entry.getId());
+        npcUuidLookupMap.remove(entry.getNpc().getUuid());
+        storage.deleteNpc(entry);
         NpcEntryImpl newEntry = new NpcEntryImpl(newId, entry.getNpc());
         newEntry.setSave(entry.isSave());
         newEntry.setProcessed(entry.isProcessed());

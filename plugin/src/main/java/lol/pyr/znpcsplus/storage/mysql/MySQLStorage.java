@@ -123,9 +123,8 @@ public class MySQLStorage implements NpcStorage {
     @Override
     public Collection<NpcEntryImpl> loadNpcs() {
         Map<String, NpcEntryImpl> npcMap = new HashMap<>();
-        try {
-            PreparedStatement st = database.getSQLConnection().prepareStatement("SELECT * FROM " + TABLE_NPCS);
-            ResultSet rs = st.executeQuery();
+        try (PreparedStatement st = database.getSQLConnection().prepareStatement("SELECT * FROM " + TABLE_NPCS);
+             ResultSet rs = st.executeQuery()) {
             while (rs.next()) {
                 NpcImpl npc = new NpcImpl(UUID.fromString(rs.getString("uuid")), propertyRegistry, configManager, packetFactory, textSerializer,
                         rs.getString("world"), typeRegistry.getByName(rs.getString("type")),
@@ -146,9 +145,8 @@ public class MySQLStorage implements NpcStorage {
             e.printStackTrace();
         }
 
-        try {
-            PreparedStatement st = database.getSQLConnection().prepareStatement("SELECT * FROM " + TABLE_NPCS_PROPERTIES);
-            ResultSet rs = st.executeQuery();
+        try (PreparedStatement st = database.getSQLConnection().prepareStatement("SELECT * FROM " + TABLE_NPCS_PROPERTIES);
+             ResultSet rs = st.executeQuery()) {
             while (rs.next()) {
                 NpcEntryImpl entry = npcMap.get(rs.getString("npc_id"));
                 String key = rs.getString("property");
@@ -176,10 +174,8 @@ public class MySQLStorage implements NpcStorage {
             e.printStackTrace();
         }
 
-        try {
-            PreparedStatement st = database.getSQLConnection().prepareStatement("SELECT * FROM " + TABLE_NPCS_HOLOGRAMS + " ORDER BY line");
-            ResultSet rs = st.executeQuery();
-
+        try (PreparedStatement st = database.getSQLConnection().prepareStatement("SELECT * FROM " + TABLE_NPCS_HOLOGRAMS + " ORDER BY line");
+             ResultSet rs = st.executeQuery()) {
             while (rs.next()) {
                 NpcEntryImpl entry = npcMap.get(rs.getString("npc_id"));
                 if (entry != null) {
@@ -191,10 +187,8 @@ public class MySQLStorage implements NpcStorage {
             throw new RuntimeException(e);
         }
 
-        try {
-            PreparedStatement st = database.getSQLConnection().prepareStatement("SELECT * FROM " + TABLE_NPCS_ACTIONS + " ORDER BY action_id");
-            ResultSet rs = st.executeQuery();
-
+        try (PreparedStatement st = database.getSQLConnection().prepareStatement("SELECT * FROM " + TABLE_NPCS_ACTIONS + " ORDER BY action_id");
+             ResultSet rs = st.executeQuery()) {
             while (rs.next()) {
                 NpcEntryImpl entry = npcMap.get(rs.getString("npc_id"));
                 if (entry != null) {
@@ -213,30 +207,30 @@ public class MySQLStorage implements NpcStorage {
         long start = System.currentTimeMillis();
         for (NpcEntryImpl entry : npcs) try {
 
-            PreparedStatement ps;
-            ps = database.getSQLConnection().prepareStatement("REPLACE INTO " + TABLE_NPCS + " (id, isProcessed, allowCommands, enabled, uuid, world, x, y, z, yaw, pitch, type, hologramOffset, hologramRefreshDelay) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-            ps.setString(1, entry.getId());
-            ps.setBoolean(2, entry.isProcessed());
-            ps.setBoolean(3, entry.isAllowCommandModification());
             NpcImpl npc = entry.getNpc();
-            ps.setBoolean(4, npc.isEnabled());
-            ps.setString(5, npc.getUuid().toString());
-            ps.setString(6, npc.getWorldName());
-            ps.setDouble(7, npc.getLocation().getX());
-            ps.setDouble(8, npc.getLocation().getY());
-            ps.setDouble(9, npc.getLocation().getZ());
-            ps.setFloat(10, npc.getLocation().getYaw());
-            ps.setFloat(11, npc.getLocation().getPitch());
-            ps.setString(12, npc.getType().getName());
             HologramImpl hologram = npc.getHologram();
-            ps.setDouble(13, hologram.getOffset());
-            ps.setBigDecimal(14, new BigDecimal(hologram.getRefreshDelay()));
+            try (PreparedStatement ps = database.getSQLConnection().prepareStatement("REPLACE INTO " + TABLE_NPCS + " (id, isProcessed, allowCommands, enabled, uuid, world, x, y, z, yaw, pitch, type, hologramOffset, hologramRefreshDelay) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+                ps.setString(1, entry.getId());
+                ps.setBoolean(2, entry.isProcessed());
+                ps.setBoolean(3, entry.isAllowCommandModification());
+                ps.setBoolean(4, npc.isEnabled());
+                ps.setString(5, npc.getUuid().toString());
+                ps.setString(6, npc.getWorldName());
+                ps.setDouble(7, npc.getLocation().getX());
+                ps.setDouble(8, npc.getLocation().getY());
+                ps.setDouble(9, npc.getLocation().getZ());
+                ps.setFloat(10, npc.getLocation().getYaw());
+                ps.setFloat(11, npc.getLocation().getPitch());
+                ps.setString(12, npc.getType().getName());
+                ps.setDouble(13, hologram.getOffset());
+                ps.setBigDecimal(14, new BigDecimal(hologram.getRefreshDelay()));
+                ps.executeUpdate();
+            }
 
-            ps.executeUpdate();
-
-            ps = database.getSQLConnection().prepareStatement("DELETE FROM " + TABLE_NPCS_PROPERTIES + " WHERE npc_id = ?");
-            ps.setString(1, entry.getId());
-            ps.executeUpdate();
+            try (PreparedStatement ps = database.getSQLConnection().prepareStatement("DELETE FROM " + TABLE_NPCS_PROPERTIES + " WHERE npc_id = ?")) {
+                ps.setString(1, entry.getId());
+                ps.executeUpdate();
+            }
 
             for (EntityProperty<?> property : npc.getAllProperties()) try {
                 PropertySerializer<?> serializer = propertyRegistry.getSerializer(((EntityPropertyImpl<?>) property).getType());
@@ -244,42 +238,47 @@ public class MySQLStorage implements NpcStorage {
                     logger.warning("Unknown serializer for property '" + property.getName() + "' for npc '" + entry.getId() + "'. skipping ...");
                     continue;
                 }
-                ps = database.getSQLConnection().prepareStatement("REPLACE INTO " + TABLE_NPCS_PROPERTIES + " (npc_id, property, value) VALUES(?,?,?)");
-                ps.setString(1, entry.getId());
-                ps.setString(2, property.getName());
-                ps.setString(3, serializer.UNSAFE_serialize(npc.getProperty(property)));
-                ps.executeUpdate();
+                try (PreparedStatement ps = database.getSQLConnection().prepareStatement("REPLACE INTO " + TABLE_NPCS_PROPERTIES + " (npc_id, property, value) VALUES(?,?,?)")) {
+                    ps.setString(1, entry.getId());
+                    ps.setString(2, property.getName());
+                    ps.setString(3, serializer.UNSAFE_serialize(npc.getProperty(property)));
+                    ps.executeUpdate();
+                }
             } catch (Exception exception) {
                 logger.severe("Failed to serialize property " + property.getName() + " for npc with id " + entry.getId());
                 exception.printStackTrace();
             }
 
-            ps = database.getSQLConnection().prepareStatement("DELETE FROM " + TABLE_NPCS_HOLOGRAMS + " WHERE npc_id = ? AND line > ?");
-            ps.setString(1, entry.getId());
-            ps.setInt(2, hologram.getLines().size() - 1);
-            ps.executeUpdate();
-
-            for (int i = 0; i < hologram.getLines().size(); i++) {
-                ps = database.getSQLConnection().prepareStatement("REPLACE INTO " + TABLE_NPCS_HOLOGRAMS + " (npc_id, line, text) VALUES(?,?,?)");
+            try (PreparedStatement ps = database.getSQLConnection().prepareStatement("DELETE FROM " + TABLE_NPCS_HOLOGRAMS + " WHERE npc_id = ? AND line > ?")) {
                 ps.setString(1, entry.getId());
-                ps.setInt(2, i);
-                ps.setString(3, hologram.getLine(i));
+                ps.setInt(2, hologram.getLines().size() - 1);
                 ps.executeUpdate();
             }
 
-            ps = database.getSQLConnection().prepareStatement("DELETE FROM " + TABLE_NPCS_ACTIONS + " WHERE npc_id = ? AND action_id > ?");
-            ps.setString(1, entry.getId());
-            ps.setInt(2, npc.getActions().size() - 1);
-            ps.executeUpdate();
+            for (int i = 0; i < hologram.getLines().size(); i++) {
+                try (PreparedStatement ps = database.getSQLConnection().prepareStatement("REPLACE INTO " + TABLE_NPCS_HOLOGRAMS + " (npc_id, line, text) VALUES(?,?,?)")) {
+                    ps.setString(1, entry.getId());
+                    ps.setInt(2, i);
+                    ps.setString(3, hologram.getLine(i));
+                    ps.executeUpdate();
+                }
+            }
+
+            try (PreparedStatement ps = database.getSQLConnection().prepareStatement("DELETE FROM " + TABLE_NPCS_ACTIONS + " WHERE npc_id = ? AND action_id > ?")) {
+                ps.setString(1, entry.getId());
+                ps.setInt(2, npc.getActions().size() - 1);
+                ps.executeUpdate();
+            }
 
             for (int i = 0; i < npc.getActions().size(); i++) {
-                ps = database.getSQLConnection().prepareStatement("REPLACE INTO " + TABLE_NPCS_ACTIONS + " (npc_id, action_id, action_data) VALUES(?,?,?)");
-                ps.setString(1, entry.getId());
-                ps.setInt(2, i);
                 String action = actionRegistry.serialize(npc.getActions().get(i));
                 if (action == null) continue;
-                ps.setString(3, action);
-                ps.executeUpdate();
+                try (PreparedStatement ps = database.getSQLConnection().prepareStatement("REPLACE INTO " + TABLE_NPCS_ACTIONS + " (npc_id, action_id, action_data) VALUES(?,?,?)")) {
+                    ps.setString(1, entry.getId());
+                    ps.setInt(2, i);
+                    ps.setString(3, action);
+                    ps.executeUpdate();
+                }
             }
         } catch (SQLException exception) {
             logger.severe("Failed to save npc with id " + entry.getId());
@@ -293,22 +292,22 @@ public class MySQLStorage implements NpcStorage {
     @Override
     public void deleteNpc(NpcEntryImpl entry) {
         try {
-            PreparedStatement ps;
-            ps = database.getSQLConnection().prepareStatement("DELETE FROM " + TABLE_NPCS + " WHERE id = ?");
-            ps.setString(1, entry.getId());
-            ps.executeUpdate();
-
-            ps = database.getSQLConnection().prepareStatement("DELETE FROM " + TABLE_NPCS_PROPERTIES + " WHERE npc_id = ?");
-            ps.setString(1, entry.getId());
-            ps.executeUpdate();
-
-            ps = database.getSQLConnection().prepareStatement("DELETE FROM " + TABLE_NPCS_HOLOGRAMS + " WHERE npc_id = ?");
-            ps.setString(1, entry.getId());
-            ps.executeUpdate();
-
-            ps = database.getSQLConnection().prepareStatement("DELETE FROM " + TABLE_NPCS_ACTIONS + " WHERE npc_id = ?");
-            ps.setString(1, entry.getId());
-            ps.executeUpdate();
+            try (PreparedStatement ps = database.getSQLConnection().prepareStatement("DELETE FROM " + TABLE_NPCS + " WHERE id = ?")) {
+                ps.setString(1, entry.getId());
+                ps.executeUpdate();
+            }
+            try (PreparedStatement ps = database.getSQLConnection().prepareStatement("DELETE FROM " + TABLE_NPCS_PROPERTIES + " WHERE npc_id = ?")) {
+                ps.setString(1, entry.getId());
+                ps.executeUpdate();
+            }
+            try (PreparedStatement ps = database.getSQLConnection().prepareStatement("DELETE FROM " + TABLE_NPCS_HOLOGRAMS + " WHERE npc_id = ?")) {
+                ps.setString(1, entry.getId());
+                ps.executeUpdate();
+            }
+            try (PreparedStatement ps = database.getSQLConnection().prepareStatement("DELETE FROM " + TABLE_NPCS_ACTIONS + " WHERE npc_id = ?")) {
+                ps.setString(1, entry.getId());
+                ps.executeUpdate();
+            }
         } catch (SQLException exception) {
             logger.severe("Failed to delete npc with id " + entry.getId());
             exception.printStackTrace();

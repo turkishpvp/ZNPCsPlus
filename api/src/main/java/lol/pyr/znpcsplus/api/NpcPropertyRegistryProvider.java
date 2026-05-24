@@ -46,5 +46,6 @@ public class NpcPropertyRegistryProvider {
      */
     public static void unregister() {
         Bukkit.getServicesManager().unregister(registry);
+        NpcPropertyRegistryProvider.registry = null;
     }
 }

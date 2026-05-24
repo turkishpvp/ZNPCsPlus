@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 
 public abstract class Viewable {
     private final static List<WeakReference<Viewable>> all = Collections.synchronizedList(new ArrayList<>());
+    private static ExecutorService visibilityExecutor = createExecutor();
 
     public static List<Viewable> all() {
         synchronized (all) {
@@ -20,19 +21,46 @@ public abstract class Viewable {
         }
     }
 
-    public static void shutdownExecutor() {
+    public static void shutdown() {
+        synchronized (all) {
+            for (WeakReference<Viewable> reference : all) {
+                Viewable viewable = reference.get();
+                if (viewable == null) continue;
+                viewable.UNSAFE_hideAll();
+                viewable.viewers.clear();
+            }
+            all.clear();
+        }
         visibilityExecutor.shutdown();
+        try {
+            if (!visibilityExecutor.awaitTermination(5, TimeUnit.SECONDS)) visibilityExecutor.shutdownNow();
+        } catch (InterruptedException e) {
+            visibilityExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
-    private final static ExecutorService visibilityExecutor = Executors.newSingleThreadExecutor();
     private final Set<Player> viewers = ConcurrentHashMap.newKeySet();
 
     public Viewable() {
         all.add(new WeakReference<>(this));
     }
 
+    private static ExecutorService createExecutor() {
+        return Executors.newSingleThreadExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "ZNPCsPlus Viewable Visibility");
+            thread.setDaemon(true);
+            return thread;
+        });
+    }
+
+    private static synchronized ExecutorService getVisibilityExecutor() {
+        if (visibilityExecutor.isShutdown() || visibilityExecutor.isTerminated()) visibilityExecutor = createExecutor();
+        return visibilityExecutor;
+    }
+
     public void delete() {
-        visibilityExecutor.submit(() -> {
+        getVisibilityExecutor().submit(() -> {
             UNSAFE_hideAll();
             viewers.clear();
             synchronized (all) {
@@ -43,7 +71,7 @@ public abstract class Viewable {
 
     public CompletableFuture<Void> respawn() {
         CompletableFuture<Void> future = new CompletableFuture<>();
-        visibilityExecutor.submit(() -> {
+        getVisibilityExecutor().submit(() -> {
             UNSAFE_hideAll();
             UNSAFE_showAll().thenRun(() -> future.complete(null));
         });
@@ -57,7 +85,7 @@ public abstract class Viewable {
 
     public CompletableFuture<Void> show(Player player) {
         CompletableFuture<Void> future = new CompletableFuture<>();
-        visibilityExecutor.submit(() -> {
+        getVisibilityExecutor().submit(() -> {
             if (viewers.contains(player)) {
                 future.complete(null);
                 return;
@@ -69,7 +97,7 @@ public abstract class Viewable {
     }
 
     public void hide(Player player) {
-        visibilityExecutor.submit(() -> {
+        getVisibilityExecutor().submit(() -> {
             if (!viewers.contains(player)) return;
             viewers.remove(player);
             UNSAFE_hide(player);

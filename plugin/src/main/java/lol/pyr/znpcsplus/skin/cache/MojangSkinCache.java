@@ -38,20 +38,22 @@ public class MojangSkinCache {
 
     public void cleanCache() {
         for (Map.Entry<String, SkinImpl> entry : cache.entrySet()) if (entry.getValue().isExpired()) cache.remove(entry.getKey());
-        for (Map.Entry<String, CachedId> entry : idCache.entrySet()) if (entry.getValue().isExpired()) cache.remove(entry.getKey());
+        for (Map.Entry<String, CachedId> entry : idCache.entrySet()) if (entry.getValue().isExpired()) idCache.remove(entry.getKey());
     }
 
     public CompletableFuture<SkinImpl> fetchByName(String name) {
         Player player = Bukkit.getPlayerExact(name);
         if (player != null && player.isOnline()) return CompletableFuture.completedFuture(getFromPlayer(player));
 
-        if (idCache.containsKey(name.toLowerCase())) return fetchByUUID(idCache.get(name.toLowerCase()).getId());
+        CachedId cachedId = getCachedId(name);
+        if (cachedId != null) return fetchByUUID(cachedId.getId());
 
         return FutureUtil.exceptionPrintingSupplyAsync(() -> {
             URL url = parseUrl("https://api.minecraftservices.com/minecraft/profile/lookup/name/" + name);
             HttpURLConnection connection = null;
             try {
                 connection = (HttpURLConnection) url.openConnection();
+                configureConnection(connection);
                 connection.setRequestMethod("GET");
                 try (Reader reader = new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)) {
                     JsonObject obj = JsonParser.parseReader(reader).getAsJsonObject();
@@ -78,13 +80,15 @@ public class MojangSkinCache {
         Player player = Bukkit.getPlayerExact(name);
         if (player != null && player.isOnline()) return CompletableFuture.completedFuture(getFromPlayer(player));
 
-        if (idCache.containsKey(name.toLowerCase())) return fetchByUUID(idCache.get(name.toLowerCase()).getId());
+        CachedId cachedId = getCachedId(name);
+        if (cachedId != null) return fetchByUUID(cachedId.getId());
 
         return FutureUtil.exceptionPrintingSupplyAsync(() -> {
             URL url = parseUrl("https://api.ashcon.app/mojang/v2/user/" + name);
             HttpURLConnection connection = null;
             try {
                 connection = (HttpURLConnection) url.openConnection();
+                configureConnection(connection);
                 connection.setRequestMethod("GET");
                 try (Reader reader = new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)) {
                     JsonObject obj = JsonParser.parseReader(reader).getAsJsonObject();
@@ -116,16 +120,15 @@ public class MojangSkinCache {
             HttpURLConnection connection = null;
             try {
                 connection = (HttpURLConnection) apiUrl.openConnection();
+                configureConnection(connection);
                 connection.setRequestMethod("POST");
                 connection.setRequestProperty("accept", "application/json");
                 connection.setRequestProperty("Content-Type", "application/json");
                 connection.setDoOutput(true);
-                OutputStream outStream = connection.getOutputStream();
-                DataOutputStream out = new DataOutputStream(outStream);
-                out.writeBytes("{\"variant\":\"" + variant + "\",\"url\":\"" + url.toString() + "\"}");
-                out.flush();
-                out.close();
-                outStream.close();
+                try (DataOutputStream out = new DataOutputStream(connection.getOutputStream())) {
+                    out.writeBytes("{\"variant\":\"" + variant + "\",\"url\":\"" + url.toString() + "\"}");
+                    out.flush();
+                }
 
                 try (Reader reader = new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)) {
                     JsonObject obj = JsonParser.parseReader(reader).getAsJsonObject();
@@ -158,6 +161,7 @@ public class MojangSkinCache {
                 String CRLF = "\r\n";
 
                 connection = (HttpURLConnection) apiUrl.openConnection();
+                configureConnection(connection);
                 connection.setRequestMethod("POST");
                 connection.setReadTimeout(10000);
                 connection.setConnectTimeout(15000);
@@ -166,18 +170,16 @@ public class MojangSkinCache {
                 connection.setRequestProperty("Content-Type", "multipart/form-data;boundary=" + boundary);
                 connection.setDoInput(true);
                 connection.setDoOutput(true);
-                OutputStream outputStream = connection.getOutputStream();
-                DataOutputStream out = new DataOutputStream(outputStream);
-                out.writeBytes("--" + boundary + CRLF);
-                out.writeBytes("Content-Disposition: form-data; name=\"file\"; filename=\"" + file.getName() + "\"" + CRLF);
-                out.writeBytes("Content-Type: image/png" + CRLF);
-                out.writeBytes(CRLF);
-                out.write(Files.readAllBytes(file.toPath()));
-                out.writeBytes(CRLF);
-                out.writeBytes("--" + boundary + "--" + CRLF);
-                out.flush();
-                out.close();
-                outputStream.close();
+                try (DataOutputStream out = new DataOutputStream(connection.getOutputStream())) {
+                    out.writeBytes("--" + boundary + CRLF);
+                    out.writeBytes("Content-Disposition: form-data; name=\"file\"; filename=\"" + file.getName() + "\"" + CRLF);
+                    out.writeBytes("Content-Type: image/png" + CRLF);
+                    out.writeBytes(CRLF);
+                    out.write(Files.readAllBytes(file.toPath()));
+                    out.writeBytes(CRLF);
+                    out.writeBytes("--" + boundary + "--" + CRLF);
+                    out.flush();
+                }
 
                 try (Reader reader = new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)) {
                     JsonObject obj = JsonParser.parseReader(reader).getAsJsonObject();
@@ -201,18 +203,16 @@ public class MojangSkinCache {
 
     public boolean isNameFullyCached(String s) {
         String name = s.toLowerCase();
-        if (!idCache.containsKey(name)) return false;
-        CachedId id = idCache.get(name);
-        if (id.isExpired() || !cache.containsKey(id.getId())) return false;
+        CachedId id = getCachedId(name);
+        if (id == null || !cache.containsKey(id.getId())) return false;
         SkinImpl skin = cache.get(id.getId());
         return !skin.isExpired();
     }
 
     public SkinImpl getFullyCachedByName(String s) {
         String name = s.toLowerCase();
-        if (!idCache.containsKey(name)) return null;
-        CachedId id = idCache.get(name);
-        if (id.isExpired() || !cache.containsKey(id.getId())) return null;
+        CachedId id = getCachedId(name);
+        if (id == null || !cache.containsKey(id.getId())) return null;
         SkinImpl skin = cache.get(id.getId());
         if (skin.isExpired()) return null;
         return skin;
@@ -232,6 +232,7 @@ public class MojangSkinCache {
             HttpURLConnection connection = null;
             try {
                 connection = (HttpURLConnection) url.openConnection();
+                configureConnection(connection);
                 connection.setRequestMethod("GET");
                 try (Reader reader = new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)) {
                     JsonObject obj = JsonParser.parseReader(reader).getAsJsonObject();
@@ -269,6 +270,20 @@ public class MojangSkinCache {
         } catch (MalformedURLException exception) {
             throw new RuntimeException(exception);
         }
+    }
+
+    private CachedId getCachedId(String name) {
+        String key = name.toLowerCase();
+        CachedId cachedId = idCache.get(key);
+        if (cachedId == null) return null;
+        if (!cachedId.isExpired()) return cachedId;
+        idCache.remove(key, cachedId);
+        return null;
+    }
+
+    private static void configureConnection(HttpURLConnection connection) {
+        connection.setConnectTimeout(15000);
+        connection.setReadTimeout(15000);
     }
 
     public File getSkinsFolder() {

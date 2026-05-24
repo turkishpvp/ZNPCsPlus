@@ -31,6 +31,6 @@ public class UserManager {
     }
 
     public void shutdown() {
-        Bukkit.getOnlinePlayers().forEach(this::remove);
+        userMap.clear();
     }
 }

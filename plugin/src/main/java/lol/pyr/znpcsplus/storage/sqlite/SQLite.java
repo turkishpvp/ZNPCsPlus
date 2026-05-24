@@ -6,6 +6,8 @@ import java.io.File;
 import java.io.IOException;
 import java.sql.*;
 import java.util.logging.Logger;
+import javax.sql.rowset.CachedRowSet;
+import javax.sql.rowset.RowSetProvider;
 
 public class SQLite extends Database{
     private final File dbFile;
@@ -46,6 +48,7 @@ public class SQLite extends Database{
         try {
             if (connection != null) {
                 connection.close();
+                connection = null;
             }
         } catch (SQLException e) {
             logger.severe("An error occurred while closing the connection");
@@ -54,10 +57,8 @@ public class SQLite extends Database{
     }
 
     public boolean tableExists(String tableName) {
-        try {
-            Statement s = connection.createStatement();
+        try (Statement s = connection.createStatement()) {
             s.executeQuery("SELECT * FROM " + tableName + ";");
-            s.close();
             return true;
         } catch (SQLException e) {
             return false;
@@ -65,10 +66,8 @@ public class SQLite extends Database{
     }
 
     public boolean columnExists(String tableName, String columnName) {
-        try {
-            Statement s = connection.createStatement();
+        try (Statement s = connection.createStatement()) {
             s.executeQuery("SELECT " + columnName + " FROM " + tableName + ";");
-            s.close();
             return true;
         } catch (SQLException e) {
             return false;
@@ -77,10 +76,8 @@ public class SQLite extends Database{
 
     public boolean addColumn(String tableName, String columnName, String type) {
         if (columnExists(tableName, columnName)) return false;
-        try {
-            Statement s = connection.createStatement();
-            s.executeQuery("ALTER TABLE " + tableName + " ADD COLUMN " + columnName + " " + type + ";");
-            s.close();
+        try (Statement s = connection.createStatement()) {
+            s.executeUpdate("ALTER TABLE " + tableName + " ADD COLUMN " + columnName + " " + type + ";");
         } catch (SQLException e) {
             return false;
         }
@@ -88,22 +85,19 @@ public class SQLite extends Database{
     }
 
     public ResultSet executeQuery(String query) {
-        try {
-            Statement s = connection.createStatement();
-            ResultSet rs = s.executeQuery(query);
-            s.close();
-            return rs;
+        try (Statement s = connection.createStatement();
+             ResultSet rs = s.executeQuery(query)) {
+            CachedRowSet rowSet = RowSetProvider.newFactory().createCachedRowSet();
+            rowSet.populate(rs);
+            return rowSet;
         } catch (SQLException e) {
             return null;
         }
     }
 
     public int executeUpdate(String query) {
-        try {
-            Statement s = connection.createStatement();
-            int rowCount = s.executeUpdate(query);
-            s.close();
-            return rowCount;
+        try (Statement s = connection.createStatement()) {
+            return s.executeUpdate(query);
         } catch (SQLException e) {
             e.printStackTrace();
             return -1;
