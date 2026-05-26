@@ -1,0 +1,2 @@
+<gray>Toggles an NPC sitting on an invisible vehicle.
+<yellow>/npc sit <id> [true|false]

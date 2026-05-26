@@ -12,6 +12,7 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEn
 import lol.pyr.znpcsplus.api.event.NpcInteractEvent;
 import lol.pyr.znpcsplus.api.interaction.InteractionAction;
 import lol.pyr.znpcsplus.api.interaction.InteractionType;
+import lol.pyr.znpcsplus.commands.NpcEquipmentCommand;
 import lol.pyr.znpcsplus.npc.NpcEntryImpl;
 import lol.pyr.znpcsplus.npc.NpcImpl;
 import lol.pyr.znpcsplus.npc.NpcRegistryImpl;
@@ -29,12 +30,14 @@ public class InteractionPacketListener implements PacketListener {
     private final NpcRegistryImpl npcRegistry;
     private final NpcTypeRegistryImpl typeRegistry;
     private final TaskScheduler scheduler;
+    private final NpcEquipmentCommand equipmentCommand;
 
-    public InteractionPacketListener(UserManager userManager, NpcRegistryImpl npcRegistry, NpcTypeRegistryImpl typeRegistry,  TaskScheduler scheduler) {
+    public InteractionPacketListener(UserManager userManager, NpcRegistryImpl npcRegistry, NpcTypeRegistryImpl typeRegistry,  TaskScheduler scheduler, NpcEquipmentCommand equipmentCommand) {
         this.userManager = userManager;
         this.npcRegistry = npcRegistry;
         this.typeRegistry = typeRegistry;
         this.scheduler = scheduler;
+        this.equipmentCommand = equipmentCommand;
     }
 
     @Override
@@ -59,6 +62,7 @@ public class InteractionPacketListener implements PacketListener {
         }
 
         InteractionType type = wrapClickType(packet.getAction());
+        if (equipmentCommand != null && equipmentCommand.handleNpcClick(player, entry, type)) return;
 
         User user = userManager.get(player);
         if (!user.canInteract()) return;

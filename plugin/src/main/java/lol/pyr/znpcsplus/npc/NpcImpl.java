@@ -1,6 +1,7 @@
 package lol.pyr.znpcsplus.npc;
 
 import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
+import com.github.retrooper.packetevents.protocol.entity.data.EntityDataTypes;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
 import io.github.retrooper.packetevents.util.SpigotConversionUtil;
 import lol.pyr.znpcsplus.api.entity.EntityProperty;
@@ -13,7 +14,11 @@ import lol.pyr.znpcsplus.entity.EntityPropertyRegistryImpl;
 import lol.pyr.znpcsplus.entity.PacketEntity;
 import lol.pyr.znpcsplus.hologram.HologramImpl;
 import lol.pyr.znpcsplus.packets.PacketFactory;
+import lol.pyr.znpcsplus.util.NamedColor;
+import lol.pyr.znpcsplus.util.NpcPath;
+import lol.pyr.znpcsplus.util.NpcPathEvent;
 import lol.pyr.znpcsplus.util.NpcLocation;
+import lol.pyr.znpcsplus.util.NpcPose;
 import lol.pyr.znpcsplus.util.Viewable;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
@@ -43,8 +48,17 @@ public class NpcImpl extends Viewable implements Npc {
     private final List<InteractionAction> actions = new ArrayList<>();
 
     private final Map<UUID, float[]> playerLookMap = new ConcurrentHashMap<>();
+    private NpcPath activePath;
+    private int pathTargetIndex = 1;
+    private long lastPathMove = System.currentTimeMillis();
+    private long pathStarted = System.currentTimeMillis();
+    private int pathEventIndex = 0;
+    private boolean shiftAnimationState;
+    private long lastShiftAnimation = System.currentTimeMillis();
+    private long lastSwingAnimation = System.currentTimeMillis();
 
     private final EntityPropertyImpl<Double> attributeScaleProperty;
+    private final EntityPropertyImpl<NpcPose> poseProperty;
 
     protected NpcImpl(UUID uuid, EntityPropertyRegistryImpl propertyRegistry, ConfigManager configManager, LegacyComponentSerializer textSerializer, World world, NpcTypeImpl type, NpcLocation location, PacketFactory packetFactory) {
         this(uuid, propertyRegistry, configManager, packetFactory, textSerializer, world.getName(), type, location);
@@ -59,6 +73,7 @@ public class NpcImpl extends Viewable implements Npc {
         entity = new PacketEntity(packetFactory, this, this, type.getType(), location);
         hologram = new HologramImpl(propertyRegistry, configManager, packetFactory, textSerializer, location.withY(location.getY() + type.getHologramOffset()));
         this.attributeScaleProperty = propertyRegistry.getByName("attribute_scale", Double.class);
+        this.poseProperty = propertyRegistry.getByName("pose", NpcPose.class);
     }
 
     public void setType(NpcTypeImpl type) {
@@ -112,6 +127,164 @@ public class NpcImpl extends Viewable implements Npc {
         hologram.setLocation(finalLocation.withY(finalLocation.getY() + type.getHologramOffset()));
     }
 
+    public void processPath(EntityPropertyImpl<NpcPath> pathProperty) {
+        if (pathProperty == null) return;
+        NpcPath path = getProperty(pathProperty);
+        if (path == null || path.isEmpty()) {
+            activePath = null;
+            return;
+        }
+        if (activePath != path) {
+            activePath = path;
+            pathTargetIndex = findNearestTargetIndex(path);
+            lastPathMove = System.currentTimeMillis();
+            pathStarted = lastPathMove;
+            pathEventIndex = 0;
+        }
+
+        long now = System.currentTimeMillis();
+        processPathEvents(path, now);
+        double movementLeft = path.getSpeed() * ((now - lastPathMove) / 1000.0);
+        lastPathMove = now;
+        while (movementLeft > 0 && !path.isEmpty()) {
+            NpcLocation target = path.getPoints().get(pathTargetIndex);
+            double x = target.getX() - location.getX();
+            double y = target.getY() - location.getY();
+            double z = target.getZ() - location.getZ();
+            double distance = Math.sqrt((x * x) + (y * y) + (z * z));
+
+            if (distance <= movementLeft || distance < 0.01) {
+                setLocation(target);
+                movementLeft -= distance;
+                if (!advancePathTarget(path)) return;
+                continue;
+            }
+
+            double factor = movementLeft / distance;
+            float yaw = target.getYaw();
+            float pitch = target.getPitch();
+            if (x != 0 || z != 0) {
+                NpcLocation look = location.lookingAt(target);
+                yaw = look.getYaw();
+                pitch = look.getPitch();
+            }
+            setLocation(new NpcLocation(
+                    location.getX() + (x * factor),
+                    location.getY() + (y * factor),
+                    location.getZ() + (z * factor),
+                    yaw,
+                    pitch
+            ));
+            movementLeft = 0;
+        }
+    }
+
+    public void processPlayerAnimations(EntityPropertyImpl<Boolean> shiftAnimationProperty, EntityPropertyImpl<Boolean> swingAnimationProperty,
+                                        EntityPropertyImpl<Boolean> fireProperty, EntityPropertyImpl<Boolean> invisibleProperty,
+                                        EntityPropertyImpl<NamedColor> glowProperty) {
+        if (!type.getType().equals(EntityTypes.PLAYER)) return;
+        long now = System.currentTimeMillis();
+        if (shiftAnimationProperty != null && getProperty(shiftAnimationProperty) && now - lastShiftAnimation >= 500L) {
+            lastShiftAnimation = now;
+            shiftAnimationState = !shiftAnimationState;
+            byte flags = 0;
+            if (fireProperty != null && getProperty(fireProperty)) flags |= 0x01;
+            if (shiftAnimationState) flags |= 0x02;
+            if (invisibleProperty != null && getProperty(invisibleProperty)) flags |= 0x20;
+            if (glowProperty != null && getProperty(glowProperty) != null) flags |= 0x40;
+            List<EntityData<?>> data = Collections.singletonList(new EntityData<>(0, EntityDataTypes.BYTE, flags));
+            for (Player viewer : getViewers()) packetFactory.sendMetadata(viewer, entity, data);
+        }
+        if (swingAnimationProperty != null && getProperty(swingAnimationProperty) && now - lastSwingAnimation >= 600L) {
+            lastSwingAnimation = now;
+            swingHand(false);
+        }
+    }
+
+    private int findNearestTargetIndex(NpcPath path) {
+        int nearestIndex = 0;
+        double nearestDistance = Double.MAX_VALUE;
+        for (int i = 0; i < path.getPoints().size(); i++) {
+            NpcLocation point = path.getPoints().get(i);
+            double x = point.getX() - location.getX();
+            double y = point.getY() - location.getY();
+            double z = point.getZ() - location.getZ();
+            double distance = (x * x) + (y * y) + (z * z);
+            if (distance >= nearestDistance) continue;
+            nearestDistance = distance;
+            nearestIndex = i;
+        }
+        int target = nearestIndex + 1;
+        return target >= path.getPoints().size() ? 0 : target;
+    }
+
+    private boolean advancePathTarget(NpcPath path) {
+        pathTargetIndex++;
+        if (pathTargetIndex < path.getPoints().size()) return true;
+        if (!path.isLoop()) {
+            pathTargetIndex = path.getPoints().size() - 1;
+            return false;
+        }
+        pathTargetIndex = 0;
+        pathStarted = System.currentTimeMillis();
+        pathEventIndex = 0;
+        return true;
+    }
+
+    private void processPathEvents(NpcPath path, long now) {
+        long elapsed = now - pathStarted;
+        while (pathEventIndex < path.getEvents().size()) {
+            NpcPathEvent event = path.getEvents().get(pathEventIndex);
+            if (event.getTimeMillis() > elapsed) break;
+            applyPathEvent(event);
+            pathEventIndex++;
+        }
+    }
+
+    private void applyPathEvent(NpcPathEvent event) {
+        switch (event.getType()) {
+            case SWING_MAIN:
+                swingHand(false);
+                break;
+            case SWING_OFF:
+                swingHand(true);
+                break;
+            case SNEAK_START:
+                if (poseProperty != null) setProperty(poseProperty, NpcPose.CROUCHING);
+                break;
+            case SNEAK_STOP:
+                if (poseProperty != null) setProperty(poseProperty, NpcPose.STANDING);
+                break;
+            case JUMP:
+                setLocation(location.withY(location.getY() + 0.35));
+                setLocation(location.withY(location.getY() - 0.35));
+                break;
+            case EQUIPMENT:
+                applyRecordedEquipment(event.getData());
+                break;
+        }
+    }
+
+    private void applyRecordedEquipment(String data) {
+        String[] split = data.split(":", 2);
+        if (split.length != 2) return;
+        EntityPropertyImpl<?> property = null;
+        for (EntityProperty<?> candidate : type.getAllowedProperties()) {
+            if (candidate.getName().equalsIgnoreCase(split[0])) {
+                property = (EntityPropertyImpl<?>) candidate;
+                break;
+            }
+        }
+        if (property == null) return;
+        if (!(property.getDefaultValue() instanceof com.github.retrooper.packetevents.protocol.item.ItemStack) && property.getDefaultValue() != null) return;
+        try {
+            com.github.retrooper.packetevents.protocol.item.ItemStack stack =
+                    io.github.retrooper.packetevents.util.SpigotConversionUtil.fromBukkitItemStack(lol.pyr.znpcsplus.util.ItemSerializationUtil.itemFromB64(split[1]));
+            UNSAFE_setProperty(property, stack);
+        } catch (RuntimeException ignored) {
+        }
+    }
+
     public void setHeadRotation(Player player, float yaw, float pitch) {
         if (getHeadYaw(player) == yaw && getHeadPitch(player) == pitch) return;
         playerLookMap.put(player.getUniqueId(), new float[]{yaw, pitch});
@@ -126,11 +299,12 @@ public class NpcImpl extends Viewable implements Npc {
         for (Player player : getViewers()) {
             if (getHeadYaw(player) == yaw && getHeadPitch(player) == pitch) continue;
             playerLookMap.put(player.getUniqueId(), new float[]{yaw, pitch});
+            float playerYaw = yaw;
             if (type.getType().isInstanceOf(EntityTypes.ENDER_DRAGON)) {
-                yaw += 180;
-                if (yaw > 360) yaw -= 360;
+                playerYaw += 180;
+                if (playerYaw > 360) playerYaw -= 360;
             }
-            entity.setHeadRotation(player, yaw, pitch);
+            entity.setHeadRotation(player, playerYaw, pitch);
         }
     }
 

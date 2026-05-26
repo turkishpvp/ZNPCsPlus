@@ -65,6 +65,7 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
         registerSerializer(new BlockStatePropertySerializer());
         registerSerializer(new LookTypeSerializer());
         registerSerializer(new GenericSerializer<>(Vector3i::toString, Vector3i::fromString, Vector3i.class));
+        registerSerializer(new GenericSerializer<>(NpcPath::serialize, NpcPath::deserialize, NpcPath.class));
 
         registerEnumSerializer(NpcPose.class);
         registerEnumSerializer(DyeColor.class);
@@ -133,6 +134,9 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
         register(new DummyProperty<>("look_distance", configManager.getConfig().lookPropertyDistance()));
         register(new DummyProperty<>("look_return", false));
         register(new DummyProperty<>("view_distance", configManager.getConfig().viewDistance()));
+        register(new DummyProperty<>("player_shift_animation", false));
+        register(new DummyProperty<>("player_swing_animation", false));
+        register(new NpcPathProperty());
 
         register(new DummyProperty<>("permission_required", false));
         register(new DummyProperty<>("premission_required_perm", String.class));

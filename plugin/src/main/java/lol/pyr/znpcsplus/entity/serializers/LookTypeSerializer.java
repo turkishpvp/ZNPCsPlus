@@ -11,9 +11,12 @@ public class LookTypeSerializer implements PropertySerializer<LookType> {
 
     @Override
     public LookType deserialize(String property) {
-        if (property.equals("true")) return LookType.CLOSEST_PLAYER;
+        String normalized = property.toLowerCase().replace('-', '_');
+        if (normalized.equals("true") || normalized.equals("close") || normalized.equals("closest") || normalized.equals("closest_player")) return LookType.CLOSEST_PLAYER;
+        if (normalized.equals("perplayer") || normalized.equals("per_player")) return LookType.PER_PLAYER;
+        if (normalized.equals("false") || normalized.equals("fixed")) return LookType.FIXED;
         try {
-             return LookType.valueOf(property);
+             return LookType.valueOf(normalized.toUpperCase());
         } catch (IllegalArgumentException ignored) {
             return LookType.FIXED;
         }

@@ -15,6 +15,7 @@ import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -31,6 +32,8 @@ public class HologramImpl extends Viewable implements Hologram {
     private long lastRefresh = System.currentTimeMillis();
     private NpcLocation location;
     private final List<HologramLine<?>> lines = new ArrayList<>();
+    private static final String LEGACY_COLOR_PATTERN = "(?i)[&\u00a7][0-9A-FK-ORX]";
+    private static final String BLANK_PREFIX = "%blank_";
 
     public HologramImpl(EntityPropertyRegistryImpl propertyRegistry, ConfigManager configManager, PacketFactory packetFactory, LegacyComponentSerializer textSerializer, NpcLocation location) {
         this.propertyRegistry = propertyRegistry;
@@ -47,7 +50,30 @@ public class HologramImpl extends Viewable implements Hologram {
         for (Player viewer : getViewers()) newLine.show(viewer.getPlayer());
     }
 
+    private void addTextLineComponent(Component line, double lineSpacingMultiplier) {
+        HologramText newLine = new HologramText(this, propertyRegistry, packetFactory, null, line, Collections.emptyList(), 0L, lineSpacingMultiplier);
+        lines.add(newLine);
+        relocateLines();
+        for (Player viewer : getViewers()) newLine.show(viewer.getPlayer());
+    }
+
+    private void addTextLineComponent(Component line, List<Component> frames, long intervalMillis) {
+        HologramText newLine = new HologramText(this, propertyRegistry, packetFactory, null, line, frames, intervalMillis, 1.0);
+        lines.add(newLine);
+        relocateLines();
+        for (Player viewer : getViewers()) newLine.show(viewer.getPlayer());
+    }
+
     public void addTextLine(String line) {
+        if (isBlankLine(line)) {
+            addTextLineComponent(HologramText.blank(), getBlankSpacingMultiplier(line));
+            return;
+        }
+        AnimatedText animatedText = parseAnimatedText(line);
+        if (animatedText != null) {
+            addTextLineComponent(animatedText.frames.get(0), animatedText.frames, animatedText.intervalMillis);
+            return;
+        }
         Component component = line.contains("§") ? Component.text(line) : MiniMessage.miniMessage().deserialize(line);
         addTextLineComponent(textSerializer.deserialize(textSerializer.serialize(component)));
     }
@@ -83,7 +109,12 @@ public class HologramImpl extends Viewable implements Hologram {
         if (lines.get(index) instanceof HologramItem) {
             return ((HologramItem) lines.get(index)).serialize();
         } else {
-            return textSerializer.serialize(getLineTextComponent(index));
+            Component component = getLineTextComponent(index);
+            if (HologramText.isBlank(component)) {
+                double multiplier = lines.get(index).getLineSpacingMultiplier();
+                return multiplier == 1.0 ? "%blank%" : "%blank_" + multiplier + "%";
+            }
+            return textSerializer.serialize(component);
         }
     }
 
@@ -109,7 +140,30 @@ public class HologramImpl extends Viewable implements Hologram {
         for (Player viewer : getViewers()) newLine.show(viewer.getPlayer());
     }
 
+    private void insertTextLineComponent(int index, Component line, double lineSpacingMultiplier) {
+        HologramText newLine = new HologramText(this, propertyRegistry, packetFactory, null, line, Collections.emptyList(), 0L, lineSpacingMultiplier);
+        lines.add(index, newLine);
+        relocateLines();
+        for (Player viewer : getViewers()) newLine.show(viewer.getPlayer());
+    }
+
+    private void insertTextLineComponent(int index, Component line, List<Component> frames, long intervalMillis) {
+        HologramText newLine = new HologramText(this, propertyRegistry, packetFactory, null, line, frames, intervalMillis, 1.0);
+        lines.add(index, newLine);
+        relocateLines();
+        for (Player viewer : getViewers()) newLine.show(viewer.getPlayer());
+    }
+
     public void insertTextLine(int index, String line) {
+        if (isBlankLine(line)) {
+            insertTextLineComponent(index, HologramText.blank(), getBlankSpacingMultiplier(line));
+            return;
+        }
+        AnimatedText animatedText = parseAnimatedText(line);
+        if (animatedText != null) {
+            insertTextLineComponent(index, animatedText.frames.get(0), animatedText.frames, animatedText.intervalMillis);
+            return;
+        }
         insertTextLineComponent(index, textSerializer.deserialize(textSerializer.serialize(MiniMessage.miniMessage().deserialize(line))));
     }
 
@@ -172,6 +226,13 @@ public class HologramImpl extends Viewable implements Hologram {
         for (HologramLine<?> line : lines) for (Player viewer : getViewers()) line.refreshMeta(viewer);
     }
 
+    public void tickAnimations() {
+        for (HologramLine<?> line : lines) {
+            if (!line.tickAnimation()) continue;
+            for (Player viewer : getViewers()) line.refreshMeta(viewer);
+        }
+    }
+
     public void setLocation(NpcLocation location) {
         this.location = location;
         relocateLines();
@@ -182,7 +243,7 @@ public class HologramImpl extends Viewable implements Hologram {
         double height = location.getY() + (lines.size() - 1) * lineSpacing + getOffset();
         for (HologramLine<?> line : lines) {
             line.setLocation(location.withY(height));
-            height -= lineSpacing;
+            height -= lineSpacing * line.getLineSpacingMultiplier();
         }
     }
 
@@ -193,5 +254,55 @@ public class HologramImpl extends Viewable implements Hologram {
 
     public double getOffset() {
         return offset;
+    }
+
+    private static boolean isBlankLine(String line) {
+        if (line == null) return true;
+        String normalized = line.trim();
+        if (normalized.equalsIgnoreCase("%blank%")) return true;
+        if (normalized.toLowerCase().startsWith(BLANK_PREFIX) && normalized.endsWith("%")) return true;
+        normalized = normalized.replaceAll(LEGACY_COLOR_PATTERN, "");
+        normalized = normalized.replaceAll("<[^>]+>", "");
+        return normalized.trim().isEmpty();
+    }
+
+    private static double getBlankSpacingMultiplier(String line) {
+        if (line == null) return 1.0;
+        String normalized = line.trim().toLowerCase();
+        if (!normalized.startsWith(BLANK_PREFIX) || !normalized.endsWith("%")) return 1.0;
+        try {
+            return Double.parseDouble(normalized.substring(BLANK_PREFIX.length(), normalized.length() - 1));
+        } catch (NumberFormatException ignored) {
+            return 1.0;
+        }
+    }
+
+    private AnimatedText parseAnimatedText(String line) {
+        if (line == null || !line.toLowerCase().startsWith("anim:")) return null;
+        String[] parts = line.split(":", 3);
+        if (parts.length != 3) return null;
+        long intervalTicks;
+        try {
+            intervalTicks = Math.max(1L, Long.parseLong(parts[1]));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+        List<Component> frames = Arrays.stream(parts[2].split("\\|"))
+                .map(String::trim)
+                .filter(frame -> !frame.isEmpty())
+                .map(frame -> textSerializer.deserialize(textSerializer.serialize(MiniMessage.miniMessage().deserialize(frame))))
+                .collect(Collectors.toList());
+        if (frames.isEmpty()) return null;
+        return new AnimatedText(frames, intervalTicks * 50L);
+    }
+
+    private static final class AnimatedText {
+        private final List<Component> frames;
+        private final long intervalMillis;
+
+        private AnimatedText(List<Component> frames, long intervalMillis) {
+            this.frames = frames;
+            this.intervalMillis = intervalMillis;
+        }
     }
 }

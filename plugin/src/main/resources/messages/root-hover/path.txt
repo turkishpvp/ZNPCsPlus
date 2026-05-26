@@ -1,0 +1,5 @@
+<gray>Records and manages a movement path for an NPC. Records movement, swing/click, sneak, jump, and held item changes.
+<yellow>/npc path record <id> [speed] [loop]
+<yellow>/npc path finish
+<yellow>/npc path clear <id>
+<yellow>/npc path speed <id> <speed>

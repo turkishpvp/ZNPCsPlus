@@ -16,6 +16,10 @@
  <hover:show_text:'{@root-hover/setrotation}'><gold>* <yellow>/npc setrotation <id> <yaw> <pitch></hover>
  <hover:show_text:'{@root-hover/move}'><gold>* <yellow>/npc move <id></hover>
  <hover:show_text:'{@root-hover/teleport}'><gold>* <yellow>/npc teleport <id></hover>
+ <hover:show_text:'{@root-hover/path}'><gold>* <yellow>/npc path <record|finish|clear|speed|info></hover>
+ <hover:show_text:'{@root-hover/equip}'><gold>* <yellow>/npc equip <id> [slot|clear|cancel]</hover>
+ <hover:show_text:'{@root-hover/sit}'><gold>* <yellow>/npc sit <id> [true|false]</hover>
+ <hover:show_text:'{@root-hover/lay}'><gold>* <yellow>/npc lay <id> [true|false]</hover>
 
  <hover:show_text:'{@root-hover/skin}'><gold>* <yellow>/npc skin <id> <type> <args></hover>
 

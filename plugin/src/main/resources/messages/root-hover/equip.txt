@@ -1,0 +1,5 @@
+<gray>Equips an NPC from your held item.
+<yellow>/npc equip <id>
+<gray>Then right-click that NPC with an item. Sneak right-click targets offhand.
+<yellow>/npc equip <id> <slot>
+<yellow>/npc equip <id> clear

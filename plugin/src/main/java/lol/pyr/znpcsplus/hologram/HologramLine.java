@@ -19,6 +19,7 @@ public class HologramLine<M> implements PropertyHolder {
     private M value;
     private final PacketEntity entity;
     private final Set<EntityProperty<?>> properties;
+    private double lineSpacingMultiplier = 1.0;
 
     public HologramLine(Viewable viewable, M value, PacketFactory packetFactory, EntityType type, NpcLocation location) {
         this.value = value;
@@ -38,6 +39,10 @@ public class HologramLine<M> implements PropertyHolder {
         entity.refreshMeta(player);
     }
 
+    public boolean tickAnimation() {
+        return false;
+    }
+
     protected CompletableFuture<Void> show(Player player) {
         return entity.spawn(player);
     }
@@ -48,6 +53,14 @@ public class HologramLine<M> implements PropertyHolder {
 
     public void setLocation(NpcLocation location) {
         entity.setLocation(location);
+    }
+
+    public double getLineSpacingMultiplier() {
+        return lineSpacingMultiplier;
+    }
+
+    protected void setLineSpacingMultiplier(double lineSpacingMultiplier) {
+        this.lineSpacingMultiplier = Math.max(0.0, lineSpacingMultiplier);
     }
 
     public int getEntityId() {

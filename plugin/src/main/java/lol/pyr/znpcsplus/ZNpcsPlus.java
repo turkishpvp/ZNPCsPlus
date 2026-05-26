@@ -44,6 +44,7 @@ import lol.pyr.znpcsplus.skin.cache.SkinCacheCleanTask;
 import lol.pyr.znpcsplus.storage.NpcStorageType;
 import lol.pyr.znpcsplus.tasks.HologramRefreshTask;
 import lol.pyr.znpcsplus.tasks.NpcProcessorTask;
+import lol.pyr.znpcsplus.tasks.PathRecordListener;
 import lol.pyr.znpcsplus.tasks.ViewableCleanupListener;
 import lol.pyr.znpcsplus.updater.UpdateChecker;
 import lol.pyr.znpcsplus.updater.UpdateNotificationListener;
@@ -152,13 +153,17 @@ public class ZNpcsPlus {
 
         typeRegistry.registerDefault(packetEvents, propertyRegistry);
         actionRegistry.registerTypes(scheduler, adventure, textSerializer, bungeeConnector);
-        packetEvents.getEventManager().registerListener(new InteractionPacketListener(userManager, npcRegistry, typeRegistry, scheduler), PacketListenerPriority.MONITOR);
+        NpcEquipmentCommand equipmentCommand = new NpcEquipmentCommand(npcRegistry, propertyRegistry);
+        packetEvents.getEventManager().registerListener(new InteractionPacketListener(userManager, npcRegistry, typeRegistry, scheduler, equipmentCommand), PacketListenerPriority.MONITOR);
         packetEvents.getEventManager().registerListener(new ClientPacketListener(configManager), PacketListenerPriority.LOWEST);
         new Metrics(bootstrap, 18244);
         pluginManager.registerEvents(new UserListener(userManager), bootstrap);
 
+        PathCommand pathCommand = new PathCommand(npcRegistry, propertyRegistry);
+        pluginManager.registerEvents(new PathRecordListener(pathCommand), bootstrap);
+
         registerCommands(npcRegistry, skinCache, adventure, actionRegistry,
-                typeRegistry, propertyRegistry, importerRegistry, configManager, packetFactory, serializerRegistry);
+                typeRegistry, propertyRegistry, importerRegistry, configManager, packetFactory, serializerRegistry, pathCommand, equipmentCommand);
 
         log(ChatColor.WHITE + " * Starting tasks...");
         if (configManager.getConfig().checkForUpdates()) {
@@ -246,7 +251,8 @@ public class ZNpcsPlus {
     private void registerCommands(NpcRegistryImpl npcRegistry, MojangSkinCache skinCache, BukkitAudiences adventure,
                                   ActionRegistryImpl actionRegistry, NpcTypeRegistryImpl typeRegistry,
                                   EntityPropertyRegistryImpl propertyRegistry, DataImporterRegistry importerRegistry,
-                                  ConfigManager configManager, PacketFactory packetFactory, NpcSerializerRegistryImpl serializerRegistry) {
+                                  ConfigManager configManager, PacketFactory packetFactory, NpcSerializerRegistryImpl serializerRegistry,
+                                  PathCommand pathCommand, NpcEquipmentCommand equipmentCommand) {
 
         Message<CommandContext> incorrectUsageMessage = context -> context.send(Component.text("Incorrect usage: /" + context.getUsage(), NamedTextColor.RED));
         CommandManager manager = new CommandManager(bootstrap, adventure, incorrectUsageMessage);
@@ -288,7 +294,7 @@ public class ZNpcsPlus {
         registerEnumParser(manager, OcelotType.class, incorrectUsageMessage);
         registerEnumParser(manager, PandaGene.class, incorrectUsageMessage);
         registerEnumParser(manager, PuffState.class, incorrectUsageMessage);
-        registerEnumParser(manager, LookType.class, incorrectUsageMessage);
+        manager.registerParser(LookType.class, new LookTypeParser(incorrectUsageMessage));
         registerEnumParser(manager, TropicalFishVariant.TropicalFishPattern.class, incorrectUsageMessage);
         registerEnumParser(manager, SnifferState.class, incorrectUsageMessage);
         registerEnumParser(manager, RabbitType.class, incorrectUsageMessage);
@@ -317,6 +323,10 @@ public class ZNpcsPlus {
                 .addSubcommand("lookatme", new LookAtMeCommand(npcRegistry))
                 .addSubcommand("setrotation", new SetRotationCommand(npcRegistry))
                 .addSubcommand("changeid", new ChangeIdCommand(npcRegistry))
+                .addSubcommand("path", pathCommand)
+                .addSubcommand("equip", equipmentCommand)
+                .addSubcommand("sit", new SitCommand(npcRegistry, propertyRegistry))
+                .addSubcommand("lay", new LayCommand(npcRegistry, propertyRegistry))
                 .addSubcommand("property", new MultiCommand(bootstrap.loadHelpMessage("property"))
                         .addSubcommand("set", new PropertySetCommand(npcRegistry))
                         .addSubcommand("remove", new PropertyRemoveCommand(npcRegistry)))

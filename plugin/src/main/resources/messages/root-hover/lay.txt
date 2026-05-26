@@ -1,0 +1,2 @@
+<gray>Toggles the sleeping/laying pose.
+<yellow>/npc lay <id> [true|false]

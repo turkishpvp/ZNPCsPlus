@@ -168,6 +168,7 @@ public class PropertySetCommand implements CommandHandler {
             if (context.argSize() == 3) {
                 if (type == Boolean.class) return context.suggestLiteral("true", "false");
                 if (type == NamedColor.class) return context.suggestEnum(NamedColor.values());
+                if (type == LookType.class) return context.suggestLiteral("fixed", "close", "per_player");
                 if (type == Color.class) return context.suggestLiteral("0x0F00FF", "#FFFFFF");
                 if (type == BlockState.class) return context.suggestLiteral("hand", "looking_at", "block");
                 if (type == SpellType.class) return PacketEvents.getAPI().getServerManager().getVersion().isOlderThan(ServerVersion.V_1_13) ?

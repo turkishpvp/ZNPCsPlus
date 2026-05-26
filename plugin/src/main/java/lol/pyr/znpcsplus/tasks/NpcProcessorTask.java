@@ -10,7 +10,9 @@ import lol.pyr.znpcsplus.npc.NpcRegistryImpl;
 import lol.pyr.znpcsplus.user.User;
 import lol.pyr.znpcsplus.user.UserManager;
 import lol.pyr.znpcsplus.util.LookType;
+import lol.pyr.znpcsplus.util.NamedColor;
 import lol.pyr.znpcsplus.util.NpcLocation;
+import lol.pyr.znpcsplus.util.NpcPath;
 import org.bukkit.Bukkit;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
@@ -39,6 +41,12 @@ public class NpcProcessorTask extends BukkitRunnable {
     EntityPropertyImpl<Sound> playerKnockbackSoundNameProperty;
     EntityPropertyImpl<Float> playerKnockbackSoundVolumeProperty;
     EntityPropertyImpl<Float> playerKnockbackSoundPitchProperty;
+    EntityPropertyImpl<NpcPath> pathProperty;
+    EntityPropertyImpl<Boolean> playerShiftAnimationProperty;
+    EntityPropertyImpl<Boolean> playerSwingAnimationProperty;
+    EntityPropertyImpl<Boolean> fireProperty;
+    EntityPropertyImpl<Boolean> invisibleProperty;
+    EntityPropertyImpl<NamedColor> glowProperty;
 
     public NpcProcessorTask(NpcRegistryImpl npcRegistry, EntityPropertyRegistryImpl propertyRegistry,UserManager userManager) {
         this.npcRegistry = npcRegistry;
@@ -61,6 +69,12 @@ public class NpcProcessorTask extends BukkitRunnable {
         this.playerKnockbackSoundNameProperty = propertyRegistry.getByName("player_knockback_sound_name", Sound.class);
         this.playerKnockbackSoundVolumeProperty = propertyRegistry.getByName("player_knockback_sound_volume", Float.class);
         this.playerKnockbackSoundPitchProperty = propertyRegistry.getByName("player_knockback_sound_pitch", Float.class);
+        this.pathProperty = propertyRegistry.getByName("path", NpcPath.class);
+        this.playerShiftAnimationProperty = propertyRegistry.getByName("player_shift_animation", Boolean.class);
+        this.playerSwingAnimationProperty = propertyRegistry.getByName("player_swing_animation", Boolean.class);
+        this.fireProperty = propertyRegistry.getByName("fire", Boolean.class);
+        this.invisibleProperty = propertyRegistry.getByName("invisible", Boolean.class);
+        this.glowProperty = propertyRegistry.getByName("glow", NamedColor.class);
     }
 
     public void run() {
@@ -82,6 +96,9 @@ public class NpcProcessorTask extends BukkitRunnable {
         for (NpcEntryImpl entry : npcRegistry.getProcessable()) {
             NpcImpl npc = entry.getNpc();
             if (!npc.isEnabled()) continue;
+            npc.processPath(pathProperty);
+            npc.getHologram().tickAnimations();
+            npc.processPlayerAnimations(playerShiftAnimationProperty, playerSwingAnimationProperty, fireProperty, invisibleProperty, glowProperty);
 
             double closestDist = Double.MAX_VALUE;
             Player closest = null;
