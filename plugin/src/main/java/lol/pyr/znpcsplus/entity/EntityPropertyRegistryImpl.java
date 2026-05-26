@@ -135,7 +135,9 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
         register(new DummyProperty<>("look_return", false));
         register(new DummyProperty<>("view_distance", configManager.getConfig().viewDistance()));
         register(new DummyProperty<>("player_shift_animation", false));
+        register(new DummyProperty<>("player_shift_animation_interval", 10));
         register(new DummyProperty<>("player_swing_animation", false));
+        register(new DummyProperty<>("player_swing_animation_interval", 12));
         register(new NpcPathProperty());
 
         register(new DummyProperty<>("permission_required", false));

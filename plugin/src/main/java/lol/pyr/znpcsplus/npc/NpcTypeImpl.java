@@ -134,7 +134,7 @@ public class NpcTypeImpl implements NpcType {
                     "player_knockback_horizontal", "player_knockback_cooldown", "player_knockback_sound", "player_knockback_sound_name",
                     "player_knockback_sound_volume", "player_knockback_sound_pitch", "path", "entity_sitting");
             if (!type.equals(EntityTypes.PLAYER)) addProperties("dinnerbone");
-            else addProperties("player_shift_animation", "player_swing_animation");
+            else addProperties("player_shift_animation", "player_shift_animation_interval", "player_swing_animation", "player_swing_animation_interval");
             if (EntityTypes.isTypeInstanceOf(type, EntityTypes.LIVINGENTITY)) {
                 addProperties("health", "attribute_max_health");
             }

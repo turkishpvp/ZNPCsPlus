@@ -43,7 +43,9 @@ public class NpcProcessorTask extends BukkitRunnable {
     EntityPropertyImpl<Float> playerKnockbackSoundPitchProperty;
     EntityPropertyImpl<NpcPath> pathProperty;
     EntityPropertyImpl<Boolean> playerShiftAnimationProperty;
+    EntityPropertyImpl<Integer> playerShiftAnimationIntervalProperty;
     EntityPropertyImpl<Boolean> playerSwingAnimationProperty;
+    EntityPropertyImpl<Integer> playerSwingAnimationIntervalProperty;
     EntityPropertyImpl<Boolean> fireProperty;
     EntityPropertyImpl<Boolean> invisibleProperty;
     EntityPropertyImpl<NamedColor> glowProperty;
@@ -71,7 +73,9 @@ public class NpcProcessorTask extends BukkitRunnable {
         this.playerKnockbackSoundPitchProperty = propertyRegistry.getByName("player_knockback_sound_pitch", Float.class);
         this.pathProperty = propertyRegistry.getByName("path", NpcPath.class);
         this.playerShiftAnimationProperty = propertyRegistry.getByName("player_shift_animation", Boolean.class);
+        this.playerShiftAnimationIntervalProperty = propertyRegistry.getByName("player_shift_animation_interval", Integer.class);
         this.playerSwingAnimationProperty = propertyRegistry.getByName("player_swing_animation", Boolean.class);
+        this.playerSwingAnimationIntervalProperty = propertyRegistry.getByName("player_swing_animation_interval", Integer.class);
         this.fireProperty = propertyRegistry.getByName("fire", Boolean.class);
         this.invisibleProperty = propertyRegistry.getByName("invisible", Boolean.class);
         this.glowProperty = propertyRegistry.getByName("glow", NamedColor.class);
@@ -98,7 +102,8 @@ public class NpcProcessorTask extends BukkitRunnable {
             if (!npc.isEnabled()) continue;
             npc.processPath(pathProperty);
             npc.getHologram().tickAnimations();
-            npc.processPlayerAnimations(playerShiftAnimationProperty, playerSwingAnimationProperty, fireProperty, invisibleProperty, glowProperty);
+            npc.processPlayerAnimations(playerShiftAnimationProperty, playerShiftAnimationIntervalProperty,
+                    playerSwingAnimationProperty, playerSwingAnimationIntervalProperty, fireProperty, invisibleProperty, glowProperty);
 
             double closestDist = Double.MAX_VALUE;
             Player closest = null;

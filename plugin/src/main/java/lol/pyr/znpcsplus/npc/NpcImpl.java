@@ -179,12 +179,15 @@ public class NpcImpl extends Viewable implements Npc {
         }
     }
 
-    public void processPlayerAnimations(EntityPropertyImpl<Boolean> shiftAnimationProperty, EntityPropertyImpl<Boolean> swingAnimationProperty,
+    public void processPlayerAnimations(EntityPropertyImpl<Boolean> shiftAnimationProperty, EntityPropertyImpl<Integer> shiftAnimationIntervalProperty,
+                                        EntityPropertyImpl<Boolean> swingAnimationProperty, EntityPropertyImpl<Integer> swingAnimationIntervalProperty,
                                         EntityPropertyImpl<Boolean> fireProperty, EntityPropertyImpl<Boolean> invisibleProperty,
                                         EntityPropertyImpl<NamedColor> glowProperty) {
         if (!type.getType().equals(EntityTypes.PLAYER)) return;
         long now = System.currentTimeMillis();
-        if (shiftAnimationProperty != null && getProperty(shiftAnimationProperty) && now - lastShiftAnimation >= 500L) {
+        long shiftInterval = ticksToMillis(shiftAnimationIntervalProperty == null ? 10 : getProperty(shiftAnimationIntervalProperty), 10);
+        long swingInterval = ticksToMillis(swingAnimationIntervalProperty == null ? 12 : getProperty(swingAnimationIntervalProperty), 12);
+        if (shiftAnimationProperty != null && getProperty(shiftAnimationProperty) && now - lastShiftAnimation >= shiftInterval) {
             lastShiftAnimation = now;
             shiftAnimationState = !shiftAnimationState;
             byte flags = 0;
@@ -195,10 +198,15 @@ public class NpcImpl extends Viewable implements Npc {
             List<EntityData<?>> data = Collections.singletonList(new EntityData<>(0, EntityDataTypes.BYTE, flags));
             for (Player viewer : getViewers()) packetFactory.sendMetadata(viewer, entity, data);
         }
-        if (swingAnimationProperty != null && getProperty(swingAnimationProperty) && now - lastSwingAnimation >= 600L) {
+        if (swingAnimationProperty != null && getProperty(swingAnimationProperty) && now - lastSwingAnimation >= swingInterval) {
             lastSwingAnimation = now;
             swingHand(false);
         }
+    }
+
+    private static long ticksToMillis(Integer ticks, int fallbackTicks) {
+        int sanitizedTicks = ticks == null ? fallbackTicks : Math.max(1, ticks);
+        return sanitizedTicks * 50L;
     }
 
     private int findNearestTargetIndex(NpcPath path) {
