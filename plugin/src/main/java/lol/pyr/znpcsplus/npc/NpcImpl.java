@@ -12,6 +12,7 @@ import lol.pyr.znpcsplus.config.ConfigManager;
 import lol.pyr.znpcsplus.entity.EntityPropertyImpl;
 import lol.pyr.znpcsplus.entity.EntityPropertyRegistryImpl;
 import lol.pyr.znpcsplus.entity.PacketEntity;
+import lol.pyr.znpcsplus.entity.properties.UsingItemProperty;
 import lol.pyr.znpcsplus.hologram.HologramImpl;
 import lol.pyr.znpcsplus.packets.PacketFactory;
 import lol.pyr.znpcsplus.util.NamedColor;
@@ -54,11 +55,17 @@ public class NpcImpl extends Viewable implements Npc {
     private long pathStarted = System.currentTimeMillis();
     private int pathEventIndex = 0;
     private boolean shiftAnimationState;
+    private boolean useItemAnimationState;
+    private int fishingHookEntityId = -1;
     private long lastShiftAnimation = System.currentTimeMillis();
     private long lastSwingAnimation = System.currentTimeMillis();
+    private long lastUseItemAnimation = System.currentTimeMillis();
 
     private final EntityPropertyImpl<Double> attributeScaleProperty;
     private final EntityPropertyImpl<NpcPose> poseProperty;
+    private final EntityPropertyImpl<Boolean> playerSittingProperty;
+    private final EntityPropertyImpl<Double> playerSittingHeightProperty;
+    private final EntityPropertyImpl<Double> playerSittingHologramHeightProperty;
 
     protected NpcImpl(UUID uuid, EntityPropertyRegistryImpl propertyRegistry, ConfigManager configManager, LegacyComponentSerializer textSerializer, World world, NpcTypeImpl type, NpcLocation location, PacketFactory packetFactory) {
         this(uuid, propertyRegistry, configManager, packetFactory, textSerializer, world.getName(), type, location);
@@ -74,13 +81,16 @@ public class NpcImpl extends Viewable implements Npc {
         hologram = new HologramImpl(propertyRegistry, configManager, packetFactory, textSerializer, location.withY(location.getY() + type.getHologramOffset()));
         this.attributeScaleProperty = propertyRegistry.getByName("attribute_scale", Double.class);
         this.poseProperty = propertyRegistry.getByName("pose", NpcPose.class);
+        this.playerSittingProperty = propertyRegistry.getByName("player_sitting", Boolean.class);
+        this.playerSittingHeightProperty = propertyRegistry.getByName("player_sitting_height", Double.class);
+        this.playerSittingHologramHeightProperty = propertyRegistry.getByName("player_sitting_hologram_height", Double.class);
     }
 
     public void setType(NpcTypeImpl type) {
         UNSAFE_hideAll();
         this.type = type;
         entity = new PacketEntity(packetFactory, this, this, type.getType(), entity.getLocation());
-        hologram.setLocation(location.withY(location.getY() + type.getHologramOffset()));
+        updateHologramLocation(location);
         UNSAFE_showAll();
     }
 
@@ -124,7 +134,18 @@ public class NpcImpl extends Viewable implements Npc {
             finalLocation = finalLocation.withRotation(location.getYaw() + 180, location.getPitch());
         }
         entity.setLocation(finalLocation);
-        hologram.setLocation(finalLocation.withY(finalLocation.getY() + type.getHologramOffset()));
+        updateHologramLocation(finalLocation);
+    }
+
+    private void updateHologramLocation(NpcLocation baseLocation) {
+        hologram.setLocation(baseLocation.withY(baseLocation.getY() + type.getHologramOffset() + getSittingHologramOffset()));
+    }
+
+    private double getSittingHologramOffset() {
+        if (!type.getType().equals(EntityTypes.PLAYER)) return 0.0;
+        if (playerSittingProperty == null || !getProperty(playerSittingProperty)) return 0.0;
+        if (playerSittingHologramHeightProperty == null) return -0.65;
+        return getProperty(playerSittingHologramHeightProperty);
     }
 
     public void processPath(EntityPropertyImpl<NpcPath> pathProperty) {
@@ -179,22 +200,41 @@ public class NpcImpl extends Viewable implements Npc {
         }
     }
 
+    public void processVehicleNpc(EntityPropertyImpl<String> vehicleNpcProperty, NpcRegistryImpl npcRegistry) {
+        if (vehicleNpcProperty == null) return;
+        String vehicleNpcId = getProperty(vehicleNpcProperty);
+        if (vehicleNpcId == null || vehicleNpcId.trim().isEmpty()) {
+            if (getVehicleId() != null) setVehicleId(null);
+            return;
+        }
+
+        NpcEntryImpl vehicleEntry = npcRegistry.getById(vehicleNpcId);
+        if (vehicleEntry == null || vehicleEntry.getNpc() == this || !vehicleEntry.getNpc().isEnabled()) {
+            if (getVehicleId() != null) setVehicleId(null);
+            return;
+        }
+
+        int vehicleEntityId = vehicleEntry.getNpc().getEntity().getEntityId();
+        setLocation(vehicleEntry.getNpc().getLocation());
+        if (!Objects.equals(getVehicleId(), vehicleEntityId)) setVehicleId(vehicleEntityId);
+    }
+
     public void processPlayerAnimations(EntityPropertyImpl<Boolean> shiftAnimationProperty, EntityPropertyImpl<Integer> shiftAnimationIntervalProperty,
                                         EntityPropertyImpl<Boolean> swingAnimationProperty, EntityPropertyImpl<Integer> swingAnimationIntervalProperty,
+                                        EntityPropertyImpl<Boolean> useAnimationProperty, EntityPropertyImpl<Integer> useAnimationIntervalProperty,
+                                        EntityPropertyImpl<Boolean> fishingHookProperty, EntityPropertyImpl<Double> fishingHookDistanceProperty,
+                                        UsingItemProperty usingItemProperty,
                                         EntityPropertyImpl<Boolean> fireProperty, EntityPropertyImpl<Boolean> invisibleProperty,
                                         EntityPropertyImpl<NamedColor> glowProperty) {
         if (!type.getType().equals(EntityTypes.PLAYER)) return;
         long now = System.currentTimeMillis();
         long shiftInterval = ticksToMillis(shiftAnimationIntervalProperty == null ? 10 : getProperty(shiftAnimationIntervalProperty), 10);
         long swingInterval = ticksToMillis(swingAnimationIntervalProperty == null ? 12 : getProperty(swingAnimationIntervalProperty), 12);
+        long useInterval = ticksToMillis(useAnimationIntervalProperty == null ? 12 : getProperty(useAnimationIntervalProperty), 12);
         if (shiftAnimationProperty != null && getProperty(shiftAnimationProperty) && now - lastShiftAnimation >= shiftInterval) {
             lastShiftAnimation = now;
             shiftAnimationState = !shiftAnimationState;
-            byte flags = 0;
-            if (fireProperty != null && getProperty(fireProperty)) flags |= 0x01;
-            if (shiftAnimationState) flags |= 0x02;
-            if (invisibleProperty != null && getProperty(invisibleProperty)) flags |= 0x20;
-            if (glowProperty != null && getProperty(glowProperty) != null) flags |= 0x40;
+            byte flags = buildEntityFlags(fireProperty, invisibleProperty, glowProperty, usingItemProperty);
             List<EntityData<?>> data = Collections.singletonList(new EntityData<>(0, EntityDataTypes.BYTE, flags));
             for (Player viewer : getViewers()) packetFactory.sendMetadata(viewer, entity, data);
         }
@@ -202,6 +242,63 @@ public class NpcImpl extends Viewable implements Npc {
             lastSwingAnimation = now;
             swingHand(false);
         }
+        if (usingItemProperty == null) return;
+        if (useAnimationProperty != null && getProperty(useAnimationProperty)) {
+            if (!useItemAnimationState) {
+                useItemAnimationState = true;
+                sendUsingItemState(true, usingItemProperty, fireProperty, invisibleProperty, glowProperty);
+                spawnFishingHook(fishingHookProperty, fishingHookDistanceProperty);
+            }
+            if (now - lastUseItemAnimation >= useInterval) {
+                lastUseItemAnimation = now;
+                sendUsingItemState(true, usingItemProperty, fireProperty, invisibleProperty, glowProperty);
+                respawnFishingHook(fishingHookProperty, fishingHookDistanceProperty);
+            }
+        } else if (useItemAnimationState) {
+            useItemAnimationState = false;
+            sendUsingItemState(false, usingItemProperty, fireProperty, invisibleProperty, glowProperty);
+            destroyFishingHook();
+        }
+    }
+
+    private byte buildEntityFlags(EntityPropertyImpl<Boolean> fireProperty, EntityPropertyImpl<Boolean> invisibleProperty,
+                                  EntityPropertyImpl<NamedColor> glowProperty, UsingItemProperty usingItemProperty) {
+        byte flags = 0;
+        if (fireProperty != null && getProperty(fireProperty)) flags |= 0x01;
+        if (shiftAnimationState) flags |= 0x02;
+        if (usingItemProperty != null && usingItemProperty.isEntityFlag() && (getProperty(usingItemProperty) || useItemAnimationState)) flags |= 0x10;
+        if (invisibleProperty != null && getProperty(invisibleProperty)) flags |= 0x20;
+        if (glowProperty != null && getProperty(glowProperty) != null) flags |= 0x40;
+        return flags;
+    }
+
+    private void sendUsingItemState(boolean enabled, UsingItemProperty usingItemProperty, EntityPropertyImpl<Boolean> fireProperty,
+                                    EntityPropertyImpl<Boolean> invisibleProperty, EntityPropertyImpl<NamedColor> glowProperty) {
+        byte entityFlags = buildEntityFlags(fireProperty, invisibleProperty, glowProperty, usingItemProperty);
+        List<EntityData<?>> data = usingItemProperty.buildStandaloneData(enabled || getProperty(usingItemProperty), entityFlags);
+        for (Player viewer : getViewers()) packetFactory.sendMetadata(viewer, entity, data);
+    }
+
+    private void spawnFishingHook(EntityPropertyImpl<Boolean> fishingHookProperty, EntityPropertyImpl<Double> fishingHookDistanceProperty) {
+        if (fishingHookProperty == null || !getProperty(fishingHookProperty)) return;
+        if (fishingHookEntityId == -1) fishingHookEntityId = PacketEntity.reserveEntityID();
+        double distance = fishingHookDistanceProperty == null ? 5.0 : Math.max(0.5, getProperty(fishingHookDistanceProperty));
+        for (Player viewer : getViewers()) packetFactory.spawnFishingHook(viewer, fishingHookEntityId, entity, distance);
+    }
+
+    private void respawnFishingHook(EntityPropertyImpl<Boolean> fishingHookProperty, EntityPropertyImpl<Double> fishingHookDistanceProperty) {
+        if (fishingHookProperty == null || !getProperty(fishingHookProperty)) {
+            destroyFishingHook();
+            return;
+        }
+        destroyFishingHook();
+        spawnFishingHook(fishingHookProperty, fishingHookDistanceProperty);
+    }
+
+    private void destroyFishingHook() {
+        if (fishingHookEntityId == -1) return;
+        for (Player viewer : getViewers()) packetFactory.destroyEntity(viewer, fishingHookEntityId);
+        fishingHookEntityId = -1;
     }
 
     private static long ticksToMillis(Integer ticks, int fallbackTicks) {
@@ -417,6 +514,7 @@ public class NpcImpl extends Viewable implements Npc {
         if (value == null || value.equals(key.getDefaultValue())) propertyMap.remove(key);
         else propertyMap.put(key, value);
         UNSAFE_refreshProperty(key);
+        if (key.equals(playerSittingProperty) || key.equals(playerSittingHeightProperty) || key.equals(playerSittingHologramHeightProperty)) updateHologramLocation(entity.getLocation());
     }
 
     @SuppressWarnings("unchecked")

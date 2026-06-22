@@ -1,6 +1,7 @@
 package lol.pyr.znpcsplus.packets;
 
 import com.github.retrooper.packetevents.PacketEventsAPI;
+import com.github.retrooper.packetevents.manager.server.ServerVersion;
 import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityType;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
@@ -91,9 +92,14 @@ public class V1_8PacketFactory implements PacketFactory {
 
     @Override
     public void destroyEntity(Player player, PacketEntity entity, PropertyHolder properties) {
-        sendPacket(player, new WrapperPlayServerDestroyEntities(entity.getEntityId()));
+        destroyEntity(player, entity.getEntityId());
         removeTabPlayer(player, entity);
         removeTeam(player, entity);
+    }
+
+    @Override
+    public void destroyEntity(Player player, int entityId) {
+        sendPacket(player, new WrapperPlayServerDestroyEntities(entityId));
     }
 
     @Override
@@ -175,7 +181,35 @@ public class V1_8PacketFactory implements PacketFactory {
 
     @Override
     public void setPassengers(Player player, int vehicleEntityId, int... passengers) {
+        if (packetEvents.getServerManager().getVersion().isOlderThan(ServerVersion.V_1_9)) {
+            for (int passenger : passengers) {
+                sendPacket(player, new WrapperPlayServerAttachEntity(passenger, vehicleEntityId, false));
+            }
+            return;
+        }
         sendPacket(player, new WrapperPlayServerSetPassengers(vehicleEntityId, passengers));
+    }
+
+    @Override
+    public void detachEntity(Player player, int passenger) {
+        if (packetEvents.getServerManager().getVersion().isOlderThan(ServerVersion.V_1_9)) {
+            sendPacket(player, new WrapperPlayServerAttachEntity(passenger, -1, false));
+        } else {
+            sendPacket(player, new WrapperPlayServerSetPassengers(passenger, new int[0]));
+        }
+    }
+
+    @Override
+    public void spawnFishingHook(Player player, int entityId, PacketEntity owner, double distance) {
+        NpcLocation location = owner.getLocation();
+        double yawRadians = Math.toRadians(location.getYaw());
+        double pitchRadians = Math.toRadians(location.getPitch());
+        double horizontal = Math.cos(pitchRadians);
+        double x = location.getX() - Math.sin(yawRadians) * horizontal * distance;
+        double y = location.getY() + 1.2 - Math.sin(pitchRadians) * distance;
+        double z = location.getZ() + Math.cos(yawRadians) * horizontal * distance;
+        sendPacket(player, new WrapperPlayServerSpawnEntity(entityId, Optional.of(UUID.randomUUID()), EntityTypes.FISHING_BOBBER,
+                new Vector3d(x, y, z), 0, location.getYaw(), location.getYaw(), owner.getEntityId(), Optional.empty()));
     }
 
     protected void sendPacket(Player player, PacketWrapper<?> packet) {

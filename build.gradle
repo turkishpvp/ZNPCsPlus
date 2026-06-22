@@ -5,7 +5,7 @@ subprojects {
     version "2.1.0" + (System.getenv().containsKey("BUILD_ID") ? "-SNAPSHOT" : "")
 
     java {
-        toolchain.languageVersion.set(JavaLanguageVersion.of(8))
+        toolchain.languageVersion.set(JavaLanguageVersion.of(21))
     }
 
     dependencies {

@@ -325,6 +325,7 @@ public class ZNpcsPlus {
                 .addSubcommand("changeid", new ChangeIdCommand(npcRegistry))
                 .addSubcommand("path", pathCommand)
                 .addSubcommand("equip", equipmentCommand)
+                .addSubcommand("ride", new RideCommand(npcRegistry, propertyRegistry))
                 .addSubcommand("sit", new SitCommand(npcRegistry, propertyRegistry))
                 .addSubcommand("lay", new LayCommand(npcRegistry, propertyRegistry))
                 .addSubcommand("property", new MultiCommand(bootstrap.loadHelpMessage("property"))

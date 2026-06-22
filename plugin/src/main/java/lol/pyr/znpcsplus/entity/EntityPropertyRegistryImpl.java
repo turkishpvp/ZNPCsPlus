@@ -134,10 +134,17 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
         register(new DummyProperty<>("look_distance", configManager.getConfig().lookPropertyDistance()));
         register(new DummyProperty<>("look_return", false));
         register(new DummyProperty<>("view_distance", configManager.getConfig().viewDistance()));
+        register(new DummyProperty<>("vehicle_npc", String.class));
         register(new DummyProperty<>("player_shift_animation", false));
         register(new DummyProperty<>("player_shift_animation_interval", 10));
         register(new DummyProperty<>("player_swing_animation", false));
         register(new DummyProperty<>("player_swing_animation_interval", 12));
+        register(new DummyProperty<>("player_use_animation", false));
+        register(new DummyProperty<>("player_use_animation_interval", 12));
+        register(new DummyProperty<>("player_fishing_hook", false));
+        register(new DummyProperty<>("player_fishing_hook_distance", 5.0));
+        register(new DummyProperty<>("player_sitting_height", -1.35));
+        register(new DummyProperty<>("player_sitting_hologram_height", -0.65));
         register(new NpcPathProperty());
 
         register(new DummyProperty<>("permission_required", false));
@@ -175,6 +182,11 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
         else if (ver.isNewerThanOrEquals(ServerVersion.V_1_14)) healthIndex = 8;
         else if (ver.isNewerThanOrEquals(ServerVersion.V_1_10)) healthIndex = 7;
         register(new HealthProperty(healthIndex));
+        if (ver.isOlderThan(ServerVersion.V_1_9)) {
+            register(new UsingItemProperty(0, true));
+        } else {
+            register(new UsingItemProperty(healthIndex - 1, false));
+        }
 
         final int tameableIndex;
         if (ver.isNewerThanOrEquals(ServerVersion.V_26_1)) tameableIndex = 18;
@@ -209,6 +221,8 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
         }
 
         register(new EntitySittingProperty(packetFactory, this));
+        register(new EntitySittingProperty("player_sitting", packetFactory, this));
+        linkProperties("player_sitting", "player_sitting_height", "player_sitting_hologram_height");
 
         // Player
         register(new DummyProperty<>("skin", SkinDescriptor.class, false));
@@ -882,6 +896,7 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
 
     private void linkProperties(Collection<EntityPropertyImpl<?>> properties) {
         for (EntityPropertyImpl<?> property : properties) for (EntityPropertyImpl<?> dependency : properties) {
+            if (property == null || dependency == null) continue;
             if (property.equals(dependency)) continue;
             property.addDependency(dependency);
         }

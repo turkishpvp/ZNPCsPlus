@@ -27,6 +27,9 @@ public interface PacketFactory {
     void sendHeadRotation(Player player, PacketEntity entity, float yaw, float pitch);
     void sendHandSwing(Player player, PacketEntity entity, boolean offHand);
     void setPassengers(Player player, int vehicle, int... passengers);
+    void detachEntity(Player player, int passenger);
+    void spawnFishingHook(Player player, int entityId, PacketEntity owner, double distance);
+    void destroyEntity(Player player, int entityId);
     void sendAllAttributes(Player player, PacketEntity entity, PropertyHolder properties);
     void sendAttribute(Player player, PacketEntity entity, WrapperPlayServerUpdateAttributes.Property property);
     void updateDisplayName(Player player, PacketEntity entity, Component displayName);

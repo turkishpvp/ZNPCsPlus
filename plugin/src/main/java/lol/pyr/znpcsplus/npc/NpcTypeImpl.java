@@ -132,9 +132,13 @@ public class NpcTypeImpl implements NpcType {
                     "potion_color", "potion_ambient", "display_name", "permission_required", "premission_required_perm",
                     "player_knockback", "player_knockback_exempt_permission", "player_knockback_distance", "player_knockback_vertical",
                     "player_knockback_horizontal", "player_knockback_cooldown", "player_knockback_sound", "player_knockback_sound_name",
-                    "player_knockback_sound_volume", "player_knockback_sound_pitch", "path", "entity_sitting");
+                    "player_knockback_sound_volume", "player_knockback_sound_pitch", "path", "entity_sitting", "vehicle_npc");
             if (!type.equals(EntityTypes.PLAYER)) addProperties("dinnerbone");
-            else addProperties("player_shift_animation", "player_shift_animation_interval", "player_swing_animation", "player_swing_animation_interval");
+            else addProperties("using_item", "player_sitting", "player_sitting_height", "player_sitting_hologram_height",
+                    "player_shift_animation", "player_shift_animation_interval",
+                    "player_swing_animation", "player_swing_animation_interval",
+                    "player_use_animation", "player_use_animation_interval",
+                    "player_fishing_hook", "player_fishing_hook_distance");
             if (EntityTypes.isTypeInstanceOf(type, EntityTypes.LIVINGENTITY)) {
                 addProperties("health", "attribute_max_health");
             }

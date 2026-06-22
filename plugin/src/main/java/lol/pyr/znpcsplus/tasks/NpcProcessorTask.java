@@ -4,6 +4,7 @@ import lol.pyr.znpcsplus.api.event.NpcDespawnEvent;
 import lol.pyr.znpcsplus.api.event.NpcSpawnEvent;
 import lol.pyr.znpcsplus.entity.EntityPropertyImpl;
 import lol.pyr.znpcsplus.entity.EntityPropertyRegistryImpl;
+import lol.pyr.znpcsplus.entity.properties.UsingItemProperty;
 import lol.pyr.znpcsplus.npc.NpcEntryImpl;
 import lol.pyr.znpcsplus.npc.NpcImpl;
 import lol.pyr.znpcsplus.npc.NpcRegistryImpl;
@@ -42,10 +43,16 @@ public class NpcProcessorTask extends BukkitRunnable {
     EntityPropertyImpl<Float> playerKnockbackSoundVolumeProperty;
     EntityPropertyImpl<Float> playerKnockbackSoundPitchProperty;
     EntityPropertyImpl<NpcPath> pathProperty;
+    EntityPropertyImpl<String> vehicleNpcProperty;
     EntityPropertyImpl<Boolean> playerShiftAnimationProperty;
     EntityPropertyImpl<Integer> playerShiftAnimationIntervalProperty;
     EntityPropertyImpl<Boolean> playerSwingAnimationProperty;
     EntityPropertyImpl<Integer> playerSwingAnimationIntervalProperty;
+    EntityPropertyImpl<Boolean> playerUseAnimationProperty;
+    EntityPropertyImpl<Integer> playerUseAnimationIntervalProperty;
+    EntityPropertyImpl<Boolean> playerFishingHookProperty;
+    EntityPropertyImpl<Double> playerFishingHookDistanceProperty;
+    UsingItemProperty usingItemProperty;
     EntityPropertyImpl<Boolean> fireProperty;
     EntityPropertyImpl<Boolean> invisibleProperty;
     EntityPropertyImpl<NamedColor> glowProperty;
@@ -72,10 +79,16 @@ public class NpcProcessorTask extends BukkitRunnable {
         this.playerKnockbackSoundVolumeProperty = propertyRegistry.getByName("player_knockback_sound_volume", Float.class);
         this.playerKnockbackSoundPitchProperty = propertyRegistry.getByName("player_knockback_sound_pitch", Float.class);
         this.pathProperty = propertyRegistry.getByName("path", NpcPath.class);
+        this.vehicleNpcProperty = propertyRegistry.getByName("vehicle_npc", String.class);
         this.playerShiftAnimationProperty = propertyRegistry.getByName("player_shift_animation", Boolean.class);
         this.playerShiftAnimationIntervalProperty = propertyRegistry.getByName("player_shift_animation_interval", Integer.class);
         this.playerSwingAnimationProperty = propertyRegistry.getByName("player_swing_animation", Boolean.class);
         this.playerSwingAnimationIntervalProperty = propertyRegistry.getByName("player_swing_animation_interval", Integer.class);
+        this.playerUseAnimationProperty = propertyRegistry.getByName("player_use_animation", Boolean.class);
+        this.playerUseAnimationIntervalProperty = propertyRegistry.getByName("player_use_animation_interval", Integer.class);
+        this.playerFishingHookProperty = propertyRegistry.getByName("player_fishing_hook", Boolean.class);
+        this.playerFishingHookDistanceProperty = propertyRegistry.getByName("player_fishing_hook_distance", Double.class);
+        this.usingItemProperty = (UsingItemProperty) propertyRegistry.getByName("using_item", Boolean.class);
         this.fireProperty = propertyRegistry.getByName("fire", Boolean.class);
         this.invisibleProperty = propertyRegistry.getByName("invisible", Boolean.class);
         this.glowProperty = propertyRegistry.getByName("glow", NamedColor.class);
@@ -101,9 +114,13 @@ public class NpcProcessorTask extends BukkitRunnable {
             NpcImpl npc = entry.getNpc();
             if (!npc.isEnabled()) continue;
             npc.processPath(pathProperty);
+            npc.processVehicleNpc(vehicleNpcProperty, npcRegistry);
             npc.getHologram().tickAnimations();
             npc.processPlayerAnimations(playerShiftAnimationProperty, playerShiftAnimationIntervalProperty,
-                    playerSwingAnimationProperty, playerSwingAnimationIntervalProperty, fireProperty, invisibleProperty, glowProperty);
+                    playerSwingAnimationProperty, playerSwingAnimationIntervalProperty,
+                    playerUseAnimationProperty, playerUseAnimationIntervalProperty,
+                    playerFishingHookProperty, playerFishingHookDistanceProperty, usingItemProperty,
+                    fireProperty, invisibleProperty, glowProperty);
 
             double closestDist = Double.MAX_VALUE;
             Player closest = null;

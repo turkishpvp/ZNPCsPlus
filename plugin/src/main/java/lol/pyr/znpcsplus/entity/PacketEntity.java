@@ -29,6 +29,7 @@ public class PacketEntity implements PropertyHolder {
     private NpcLocation location;
 
     private PacketEntity vehicle;
+    private double vehicleOffsetY = -0.9;
     private Integer vehicleId;
     private List<Integer> passengers;
 
@@ -61,7 +62,7 @@ public class PacketEntity implements PropertyHolder {
     public void setLocation(NpcLocation location) {
         this.location = location;
         if (vehicle != null) {
-            vehicle.setLocation(location.withY(location.getY() - 0.9));
+            vehicle.setLocation(location.withY(location.getY() + vehicleOffsetY));
             return;
         }
         for (Player viewer : viewable.getViewers()) packetFactory.teleportEntity(viewer, this);
@@ -72,7 +73,7 @@ public class PacketEntity implements PropertyHolder {
             if (type == EntityTypes.PLAYER) packetFactory.spawnPlayer(player, this, properties).join();
             else packetFactory.spawnEntity(player, this, properties);
             if (vehicle != null) {
-                setVehicle(vehicle);
+                setVehicle(vehicle, vehicleOffsetY);
             }
             if (vehicleId != null) {
                 packetFactory.setPassengers(player, vehicleId, this.getEntityId());
@@ -99,40 +100,55 @@ public class PacketEntity implements PropertyHolder {
         if (this.vehicle != null) {
             for (Player player : viewable.getViewers()) {
                 packetFactory.setPassengers(player, this.vehicle.getEntityId());
+                packetFactory.detachEntity(player, this.getEntityId());
                 this.vehicle.despawn(player);
                 packetFactory.teleportEntity(player, this);
             }
         } else if (this.vehicleId != null) {
             for (Player player : viewable.getViewers()) {
                 packetFactory.setPassengers(player, this.vehicleId);
+                packetFactory.detachEntity(player, this.getEntityId());
             }
         }
         this.vehicleId = vehicleId;
         if (vehicleId == null) return;
 
         for (Player player : viewable.getViewers()) {
-            packetFactory.setPassengers(player, this.getEntityId(), vehicleId);
+            packetFactory.setPassengers(player, vehicleId, this.getEntityId());
         }
     }
 
     public void setVehicle(PacketEntity vehicle) {
+        setVehicle(vehicle, -0.9);
+    }
+
+    public void updateVehicleOffset(double offsetY) {
+        this.vehicleOffsetY = offsetY;
+        if (vehicle == null) return;
+        vehicle.setLocation(location.withY(location.getY() + offsetY));
+    }
+
+    public void setVehicle(PacketEntity vehicle, double offsetY) {
         // remove old vehicle
         if (this.vehicle != null) {
             for (Player player : viewable.getViewers()) {
                 packetFactory.setPassengers(player, this.vehicle.getEntityId());
+                packetFactory.detachEntity(player, this.getEntityId());
                 this.vehicle.despawn(player);
                 packetFactory.teleportEntity(player, this);
             }
         } else if (this.vehicleId != null) {
             for (Player player : viewable.getViewers()) {
                 packetFactory.setPassengers(player, this.vehicleId);
+                packetFactory.detachEntity(player, this.getEntityId());
             }
         }
 
         this.vehicle = vehicle;
+        this.vehicleOffsetY = offsetY;
         if (this.vehicle == null) return;
 
-        vehicle.setLocation(location.withY(location.getY() - 0.9));
+        vehicle.setLocation(location.withY(location.getY() + offsetY));
         for (Player player : viewable.getViewers()) {
             vehicle.spawn(player).thenRun(() -> {
                 packetFactory.setPassengers(player, vehicle.getEntityId(), this.getEntityId());
@@ -182,7 +198,7 @@ public class PacketEntity implements PropertyHolder {
         packetFactory.sendHandSwing(player, this, offhand);
     }
 
-    private static int reserveEntityID() {
+    public static int reserveEntityID() {
         if (PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_1_14)) {
             return Reflections.ATOMIC_ENTITY_ID_FIELD.get().incrementAndGet();
         } else {
