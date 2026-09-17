@@ -4,7 +4,9 @@ import lol.pyr.znpcsplus.api.interaction.*;
 import lol.pyr.znpcsplus.interaction.consolecommand.ConsoleCommandActionType;
 import lol.pyr.znpcsplus.interaction.message.MessageActionType;
 import lol.pyr.znpcsplus.interaction.playerchat.PlayerChatActionType;
+import lol.pyr.znpcsplus.config.ConfigManager;
 import lol.pyr.znpcsplus.interaction.playercommand.PlayerCommandActionType;
+import lol.pyr.znpcsplus.interaction.queue.QueueActionType;
 import lol.pyr.znpcsplus.interaction.switchserver.SwitchServerActionType;
 import lol.pyr.znpcsplus.scheduling.TaskScheduler;
 import lol.pyr.znpcsplus.util.BungeeConnector;
@@ -20,12 +22,13 @@ import java.util.stream.Collectors;
 public class ActionRegistryImpl implements ActionRegistry {
     private final Map<Class<?>, InteractionActionType<?>> serializerMap = new HashMap<>();
 
-    public void registerTypes(TaskScheduler taskScheduler, BukkitAudiences adventure, LegacyComponentSerializer textSerializer, BungeeConnector bungeeConnector) {
+    public void registerTypes(TaskScheduler taskScheduler, BukkitAudiences adventure, LegacyComponentSerializer textSerializer, BungeeConnector bungeeConnector, ConfigManager configManager) {
         register(new ConsoleCommandActionType(taskScheduler));
         register(new PlayerCommandActionType(taskScheduler));
         register(new SwitchServerActionType(bungeeConnector));
         register(new MessageActionType(adventure, textSerializer));
         register(new PlayerChatActionType(taskScheduler));
+        register(new QueueActionType(adventure, textSerializer, configManager));
     }
 
     public void register(InteractionActionType<?> type) {

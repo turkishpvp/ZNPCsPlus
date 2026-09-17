@@ -36,6 +36,11 @@ public interface MainConfig {
     @DefaultString("YAML")
     NpcStorageType storageType();
 
+    @ConfKey("queue-config")
+    @ConfComments("Messages and behaviour of the npc \"queue\" action, which uses Phoenix (pxQueue)")
+    @SubSection
+    QueueConfig queueConfig();
+
     @ConfKey("database-config")
     @ConfComments("The database config. Only used if storage-type is MYSQL")
     @SubSection

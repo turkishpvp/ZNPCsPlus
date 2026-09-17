@@ -1,0 +1,21 @@
+# NPC Queue - ZNPCsPlus
+# NPC ID -> Sunucu adı buraya
+
+import:
+    lol.pyr.znpcsplus.api.event.NpcInteractEvent
+
+function getServerForNpc(npcId: string) :: string:
+    if {_npcId} is "0":
+        return "practice"
+    return ""
+
+on NpcInteractEvent:
+    set {_player} to event.getPlayer()
+    set {_npcId} to event.getEntry().getId()
+
+    set {_server} to getServerForNpc({_npcId})
+    if {_server} is "":
+        stop
+
+    cancel event
+    connect {_player} to {_server}

@@ -152,7 +152,7 @@ public class ZNpcsPlus {
         shutdownTasks.add(bungeeConnector::unregisterChannel);
 
         typeRegistry.registerDefault(packetEvents, propertyRegistry);
-        actionRegistry.registerTypes(scheduler, adventure, textSerializer, bungeeConnector);
+        actionRegistry.registerTypes(scheduler, adventure, textSerializer, bungeeConnector, configManager);
         NpcEquipmentCommand equipmentCommand = new NpcEquipmentCommand(npcRegistry, propertyRegistry);
         packetEvents.getEventManager().registerListener(new InteractionPacketListener(userManager, npcRegistry, typeRegistry, scheduler, equipmentCommand), PacketListenerPriority.MONITOR);
         packetEvents.getEventManager().registerListener(new ClientPacketListener(configManager), PacketListenerPriority.LOWEST);
