@@ -27,7 +27,7 @@ public interface QueueConfig {
 
     @ConfKey("title-fade-in")
     @ConfComments("Title fade in time in ticks, used by every queue title")
-    @DefaultInteger(5)
+    @DefaultInteger(0)
     int titleFadeIn();
 
     @ConfKey("title-stay")
