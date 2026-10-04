@@ -2,7 +2,7 @@ subprojects {
     apply plugin: "java"
 
     group "lol.pyr"
-    version "2.1.0" + (System.getenv().containsKey("BUILD_ID") ? "-SNAPSHOT" : "")
+    version "2.1.1" + (System.getenv().containsKey("BUILD_ID") ? "-SNAPSHOT" : "")
 
     java {
         toolchain.languageVersion.set(JavaLanguageVersion.of(21))

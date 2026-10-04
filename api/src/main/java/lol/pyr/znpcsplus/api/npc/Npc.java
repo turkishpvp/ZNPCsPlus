@@ -86,6 +86,9 @@ public interface Npc extends PropertyHolder {
      */
     UUID getUuid();
 
+    /** UUID used by the visible entity's spawn and player-info packets. */
+    default UUID getPacketEntityUuid() { return getUuid(); }
+
     /**
      * Gets the {@link World} this NPC is in
      * Note: can be null if the world is unloaded or does not exist

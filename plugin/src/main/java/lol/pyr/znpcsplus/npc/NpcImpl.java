@@ -45,7 +45,7 @@ public class NpcImpl extends Viewable implements Npc {
     private final HologramImpl hologram;
     private final UUID uuid;
 
-    private final Map<EntityPropertyImpl<?>, Object> propertyMap = new HashMap<>();
+    private final Map<EntityPropertyImpl<?>, Object> propertyMap = new ConcurrentHashMap<>();
     private final List<InteractionAction> actions = new ArrayList<>();
 
     private final Map<UUID, float[]> playerLookMap = new ConcurrentHashMap<>();
@@ -447,6 +447,11 @@ public class NpcImpl extends Viewable implements Npc {
 
     public UUID getUuid() {
         return uuid;
+    }
+
+    @Override
+    public UUID getPacketEntityUuid() {
+        return entity.getUuid();
     }
 
     public @Nullable World getWorld() {

@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 public class HologramImpl extends Viewable implements Hologram {
@@ -31,7 +32,7 @@ public class HologramImpl extends Viewable implements Hologram {
     private long refreshDelay = -1;
     private long lastRefresh = System.currentTimeMillis();
     private NpcLocation location;
-    private final List<HologramLine<?>> lines = new ArrayList<>();
+    private final List<HologramLine<?>> lines = new CopyOnWriteArrayList<>();
     private static final String LEGACY_COLOR_PATTERN = "(?i)[&\u00a7][0-9A-FK-ORX]";
     private static final String BLANK_PREFIX = "%blank_";
 

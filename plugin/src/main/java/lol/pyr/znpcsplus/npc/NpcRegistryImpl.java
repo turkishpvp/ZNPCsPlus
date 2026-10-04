@@ -23,6 +23,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.World;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 public class NpcRegistryImpl implements NpcRegistry {
@@ -32,9 +34,9 @@ public class NpcRegistryImpl implements NpcRegistry {
     private final LegacyComponentSerializer textSerializer;
     private final EntityPropertyRegistryImpl propertyRegistry;
 
-    private final List<NpcEntryImpl> npcList = new ArrayList<>();
-    private final Map<String, NpcEntryImpl> npcIdLookupMap = new HashMap<>();
-    private final Map<UUID, NpcEntryImpl> npcUuidLookupMap = new HashMap<>();
+    private final List<NpcEntryImpl> npcList = new CopyOnWriteArrayList<>();
+    private final Map<String, NpcEntryImpl> npcIdLookupMap = new ConcurrentHashMap<>();
+    private final Map<UUID, NpcEntryImpl> npcUuidLookupMap = new ConcurrentHashMap<>();
 
     public NpcRegistryImpl(ConfigManager configManager, ZNpcsPlus plugin, PacketFactory packetFactory, ActionRegistryImpl actionRegistry, TaskScheduler scheduler, NpcTypeRegistryImpl typeRegistry, EntityPropertyRegistryImpl propertyRegistry, NpcSerializerRegistryImpl serializerRegistry, LegacyComponentSerializer textSerializer) {
         this.textSerializer = textSerializer;

@@ -12,6 +12,7 @@ runServer {
 }
 
 processResources {
+    inputs.property("pluginVersion", project.version)
     expand("version": version)
 }
 
